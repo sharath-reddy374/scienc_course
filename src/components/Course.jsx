@@ -1,6 +1,7 @@
 // src/components/Course.jsx
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { X } from 'lucide-react';
 import TOCSlide from './slides/TOCSlide';
 import IntroSlide from './slides/IntroSlide';
 import TypesSlide from './slides/TypesSlide';
@@ -39,6 +40,13 @@ const Course = () => {
     }
   };
 
+  const handleClose = () => {
+    // Clear the course data from localStorage
+    localStorage.removeItem('courseData');
+    // Navigate back to the input form
+    navigate('/');
+  };
+
   if (!courseData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -50,7 +58,16 @@ const Course = () => {
   const CurrentSlideComponent = slides[currentSlide].component;
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen relative">
+      {/* Close button */}
+      <button 
+        onClick={handleClose} 
+        className="absolute top-4 right-4 z-10 p-2 rounded-full hover:bg-gray-100 transition-colors"
+        aria-label="Close course"
+      >
+        <X size={24} strokeWidth={2} />
+      </button>
+
       <CurrentSlideComponent 
         courseData={courseData}
         onNext={handleNext}
