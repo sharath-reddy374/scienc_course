@@ -1,45 +1,38 @@
 // src/components/slides/IntroSlide.jsx
-import React, { useState, useEffect } from 'react';
-import { generateSlideContent } from '../../services/openai';
+import React, { useState } from 'react';
 import SlideWrapper from '../common/SlideWrapper';
 
-const IntroSlide = ({ courseData, onNext, onPrevious }) => {
-  const [content, setContent] = useState(null);
+const IntroSlide = ({ courseData, content, onNext, onPrevious, onRefreshContent, isRefreshing }) => {
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [activeSection, setActiveSection] = useState('description'); // 'description' or 'quiz'
 
-  useEffect(() => {
-    const fetchContent = async () => {
-      try {
-        const data = await generateSlideContent('INTRO', courseData);
-        setContent(data);
-      } catch (error) {
-        console.error('Error fetching intro content:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchContent();
-  }, [courseData]);
+  // If content isn’t available, don’t render the slide.
+  if (!content) return null;
 
   const handleAnswerSelect = (index) => {
     setSelectedAnswer(index);
     setShowFeedback(true);
   };
 
-  if (loading) {
-    return (
-      <SlideWrapper className="bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent"></div>
-      </SlideWrapper>
-    );
-  }
+  const handleTryAnotherQuestion = () => {
+    // Trigger centralized refresh.
+    if (onRefreshContent) {
+      onRefreshContent();
+      // Optionally, reset quiz-related states here if needed.
+      setSelectedAnswer(null);
+      setShowFeedback(false);
+    }
+  };
 
   return (
-    <SlideWrapper className="bg-gradient-to-br from-blue-50 to-blue-100">
+    <SlideWrapper className="bg-gradient-to-br from-blue-50 to-blue-100 relative">
+      {/* Overlay spinner for refreshing only on this slide */}
+      {isRefreshing && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 z-10">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent"></div>
+        </div>
+      )}
       <div className="w-full h-full flex flex-col p-8">
         {/* Title & Navigation */}
         <div className="text-center mb-8">
@@ -168,10 +161,7 @@ const IntroSlide = ({ courseData, onNext, onPrevious }) => {
                         : '📚 Keep learning! Review the content and try again.'}
                     </p>
                     <button
-                      onClick={() => {
-                        setShowFeedback(false);
-                        setSelectedAnswer(null);
-                      }}
+                      onClick={handleTryAnotherQuestion}
                       className="mt-2 px-4 py-2 bg-white rounded-lg shadow hover:shadow-md transition-shadow"
                     >
                       Try Another Question

@@ -1,34 +1,13 @@
 // src/components/slides/TypesSlide.jsx
-import React, { useState, useEffect } from 'react';
-import { generateSlideContent } from '../../services/openai';
+import React, { useState } from 'react';
 import SlideWrapper from '../common/SlideWrapper';
 
-const TypesSlide = ({ courseData, onPrevious, isLast }) => {
+const TypesSlide = ({ courseData, content, onPrevious, isLast, onNext }) => {
   const [activeTopic, setActiveTopic] = useState(null);
-  const [content, setContent] = useState(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchContent = async () => {
-      try {
-        const data = await generateSlideContent('TYPES', courseData);
-        setContent(data);
-      } catch (error) {
-        console.error('Error fetching types content:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchContent();
-  }, [courseData]);
-
-  if (loading) {
-    return (
-      <SlideWrapper className="bg-gradient-to-b from-blue-600 to-blue-300 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent"></div>
-      </SlideWrapper>
-    );
+  // Do not render anything if content is not yet available.
+  if (!content) {
+    return null;
   }
 
   return (
@@ -48,7 +27,7 @@ const TypesSlide = ({ courseData, onPrevious, isLast }) => {
               <div
                 key={index}
                 className="bg-white rounded-2xl shadow-lg overflow-hidden cursor-pointer
-                         transform transition-all duration-300 hover:scale-105 hover:shadow-xl"
+                           transform transition-all duration-300 hover:scale-105 hover:shadow-xl"
                 onClick={() => setActiveTopic(index)}
               >
                 <div className="p-8 h-full flex flex-col items-center justify-center text-center">
@@ -79,7 +58,7 @@ const TypesSlide = ({ courseData, onPrevious, isLast }) => {
                 <button
                   onClick={() => setActiveTopic(null)}
                   className="text-blue-600 hover:text-blue-800 text-2xl w-10 h-10 rounded-full
-                           flex items-center justify-center hover:bg-blue-50 transition-colors"
+                             flex items-center justify-center hover:bg-blue-50 transition-colors"
                 >
                   ×
                 </button>
@@ -89,7 +68,7 @@ const TypesSlide = ({ courseData, onPrevious, isLast }) => {
                   <div
                     key={idx}
                     className="bg-blue-50 p-6 rounded-xl transform transition-all duration-300
-                             hover:translate-y-[-4px] hover:shadow-lg"
+                               hover:translate-y-[-4px] hover:shadow-lg"
                   >
                     <h3 className="text-xl font-semibold text-blue-800 mb-3">
                       {point.title}
@@ -108,7 +87,7 @@ const TypesSlide = ({ courseData, onPrevious, isLast }) => {
           <button
             onClick={onPrevious}
             className="bg-white text-blue-600 px-8 py-3 rounded-full shadow-md
-                     hover:bg-blue-50 transition-all duration-300 hover:scale-105"
+                       hover:bg-blue-50 transition-all duration-300 hover:scale-105"
           >
             ← Previous
           </button>

@@ -6,27 +6,27 @@ const client = new OpenAI({
     dangerouslyAllowBrowser: true
 });
 
-export const generateSlideContent = async (slideType, context) => {
+export const generateSlideContent = async (slideType, context, options = {}) => {
     try {
         console.log('Making API call for:', slideType);
         console.log('Context:', context);
+        console.log('Options:', options);
         
-        const prompt = getSlidePrompt(slideType, context);
+        const prompt = getSlidePrompt(slideType, context, options);
         console.log('Using prompt:', prompt);
 
         const response = await client.chat.completions.create({
-            model: "gpt-3.5-turbo", // Changed from gpt-4
+            model: "gpt-3.5-turbo",
             messages: [
                 {
                     "role": "system",
-                    "content": "You are an expert course content generator. You must always respond with valid JSON. Format your responses as a JSON object with the required structure for each slide type."
+                    "content": "You are an expert course content generator. You must always respond with valid JSON. Format your responses as a JSON object with the required structure for each slide type. For quiz questions, ensure the new question is different from any previous questions."
                 },
                 {
                     "role": "user",
                     "content": prompt
                 }
             ]
-            // Removed response_format parameter as it's not supported
         });
         
         const content = response.choices[0].message.content;
@@ -48,7 +48,7 @@ export const generateSlideContent = async (slideType, context) => {
     }
 };
 
-const getSlidePrompt = (slideType, context) => {
+const getSlidePrompt = (slideType, context, options = {}) => {
     const { subject, topic } = context;
     
     switch (slideType) {
@@ -67,7 +67,12 @@ const getSlidePrompt = (slideType, context) => {
                    Include exactly 4 quests, each with exactly 3 learning objectives.`;
         
         case 'INTRO':
+            const additionalQuizInstructions = options.regenerateQuiz 
+                ? "Generate a completely new quiz question that is different from any previous questions. Ensure the new question tests a different aspect of the topic." 
+                : "";
+
             return `Create an introduction for ${subject}: ${topic}. 
+                   ${additionalQuizInstructions}
                    Return your response in this exact JSON format:
                    {
                      "description": "course description",
