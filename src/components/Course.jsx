@@ -6,13 +6,22 @@ import LoadingSpinner from './LoadingSpinner';
 import TOCSlide from './slides/TOCSlide';
 import IntroSlide from './slides/IntroSlide';
 import TypesSlide from './slides/TypesSlide';
-import { generateSlideContent } from '../services/openai';
+import MatchingSlide from './slides/MatchingSlide';
+import EquationBuilder from './slides/EquationBuilder';
+import { generateSlideContent, fetchDetailContent } from '../services/openai';
 
 const Course = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [courseData, setCourseData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState({
+    intro: false,
+    content: false,
+    matching: false,
+    equation: false,
+    toc: false,
+    detail: false
+  });
   const [slideContents, setSlideContents] = useState({});
   const location = useLocation();
   const navigate = useNavigate();
@@ -30,7 +39,9 @@ const Course = () => {
   const slides = [
     { component: TOCSlide, title: 'Table of Contents', contentKey: 'toc' },
     { component: IntroSlide, title: 'Introduction', contentKey: 'intro' },
-    { component: TypesSlide, title: 'Content', contentKey: 'content' }
+    { component: TypesSlide, title: 'Content', contentKey: 'content' },
+    { component: MatchingSlide, title: 'Matching Exercise', contentKey: 'matching' },
+    { component: EquationBuilder, title: 'Equation Builder', contentKey: 'equation' }
   ];
 
   // Map contentKey to the type used in generateSlideContent.
@@ -39,6 +50,9 @@ const Course = () => {
       case 'toc': return 'TOC';
       case 'intro': return 'INTRO';
       case 'content': return 'TYPES';
+      case 'matching': return 'MATCHING';
+      case 'equation': return 'EQUATION';
+      case 'detail': return 'DETAIL';
       default: return '';
     }
   };
@@ -47,10 +61,50 @@ const Course = () => {
   const fetchSlideContent = async (contentKey, options = {}) => {
     const type = getContentType(contentKey);
     try {
+      setIsRefreshing(prev => ({ ...prev, [contentKey]: true }));
       const data = await generateSlideContent(type, courseData, options);
       setSlideContents((prev) => ({ ...prev, [contentKey]: data }));
     } catch (error) {
       console.error(`Error fetching ${contentKey} content:`, error);
+    } finally {
+      setIsRefreshing(prev => ({ ...prev, [contentKey]: false }));
+    }
+  };
+
+  // Handle fetching detail content for TypesSlide
+  const handleFetchDetailContent = async (selectedTopicIndex) => {
+    try {
+      // Make sure we have the basic content first
+      if (!slideContents.content) {
+        return;
+      }
+
+      setIsRefreshing(prev => ({ ...prev, detail: true }));
+      
+      // Check if we already have details for this topic
+      if (slideContents.content.details && 
+          slideContents.content.details[selectedTopicIndex]) {
+        // We already have this detail content, no need to fetch
+        setIsRefreshing(prev => ({ ...prev, detail: false }));
+        return;
+      }
+      
+      // Use the fetchDetailContent function to get details for this topic
+      const updatedContent = await fetchDetailContent(
+        'content',
+        slideContents.content,
+        selectedTopicIndex
+      );
+      
+      // Update the content with the new details
+      setSlideContents(prev => ({
+        ...prev,
+        content: updatedContent
+      }));
+    } catch (error) {
+      console.error('Error fetching detail content:', error);
+    } finally {
+      setIsRefreshing(prev => ({ ...prev, detail: false }));
     }
   };
 
@@ -80,14 +134,12 @@ const Course = () => {
     navigate('/');
   };
 
-  // Refresh handler for IntroSlide (e.g. generating a new quiz question).
-  const handleRefreshIntroContent = async () => {
-    setIsRefreshing(true);
-    await fetchSlideContent('intro', { regenerateQuiz: true });
-    setIsRefreshing(false);
+  // Generic refresh handler for any slide content
+  const handleRefreshContent = async (contentKey, options = {}) => {
+    await fetchSlideContent(contentKey, options);
   };
 
-  // Optionally, preload the first slide’s content if needed.
+  // Optionally, preload the first slide's content if needed.
   useEffect(() => {
     if (courseData && slides[0].contentKey && !slideContents[slides[0].contentKey]) {
       setIsLoading(true);
@@ -127,9 +179,21 @@ const Course = () => {
         content={contentProp}
         onNext={handleNext}
         onPrevious={handlePrevious}
-        // For IntroSlide, pass the refresh handler and its loading state.
-        onRefreshContent={currentContentKey === 'intro' ? handleRefreshIntroContent : undefined}
-        isRefreshing={currentContentKey === 'intro' ? isRefreshing : false}
+        // Pass refresh handler and loading state to all slides
+        onRefreshContent={
+          currentContentKey === 'content' 
+            ? (selectedTopicIndex) => handleFetchDetailContent(selectedTopicIndex)
+            : currentContentKey 
+              ? (options) => handleRefreshContent(currentContentKey, options) 
+              : undefined
+        }
+        isRefreshing={
+          currentContentKey === 'content'
+            ? isRefreshing.detail || isRefreshing.content
+            : currentContentKey 
+              ? isRefreshing[currentContentKey] 
+              : false
+        }
         isFirst={currentSlide === 0}
         isLast={currentSlide === slides.length - 1}
       />
