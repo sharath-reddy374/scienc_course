@@ -20,7 +20,7 @@ export const generateSlideContent = async (slideType, context, options = {}) => 
             messages: [
                 {
                     "role": "system",
-                    "content": "You are an expert course content generator. You must always respond with valid JSON. Format your responses as a JSON object with the required structure for each slide type. For quiz questions, ensure the new question is different from any previous questions."
+                    "content": "You are an expert course content generator. You must always respond with valid JSON. Format your responses as a JSON object with the required structure for each slide type. For quiz questions, ensure the new question is different from any previous questions. Consider any additional requirements provided in the description."
                 },
                 {
                     "role": "user",
@@ -49,11 +49,26 @@ export const generateSlideContent = async (slideType, context, options = {}) => 
 };
 
 const getSlidePrompt = (slideType, context, options = {}) => {
-    const { subject, topic } = context;
+    const { 
+        subject, 
+        topic, 
+        description = ''
+    } = context;
+    
+
+
+    // Build contextual information
+    const contextInfo = `
+        Subject: ${subject}
+        Topic: ${topic}
+        ${description ? `Additional Details: ${description}` : ''}
+    `;
     
     switch (slideType) {
         case 'TOC':
-            return `Create a course outline for ${subject}: ${topic}. 
+            return `Create a course outline for the following course:
+                   ${contextInfo}
+                   
                    Return your response in this exact JSON format:
                    {
                      "title": "Course Title",
@@ -64,6 +79,7 @@ const getSlidePrompt = (slideType, context, options = {}) => {
                        }
                      ]
                    }
+                   
                    Include exactly 4 quests, each with exactly 3 learning objectives.`;
         
         case 'INTRO':
@@ -71,7 +87,9 @@ const getSlidePrompt = (slideType, context, options = {}) => {
                 ? "Generate a completely new quiz question that is different from any previous questions. Ensure the new question tests a different aspect of the topic." 
                 : "";
 
-            return `Create an introduction for ${subject}: ${topic}. 
+            return `Create an introduction for the following course:
+                   ${contextInfo}
+                   
                    ${additionalQuizInstructions}
                    Return your response in this exact JSON format:
                    {
@@ -84,7 +102,9 @@ const getSlidePrompt = (slideType, context, options = {}) => {
                    }`;
         
         case 'TYPES':
-            return `Create detailed content about ${topic} in ${subject}. 
+            return `Create detailed content about ${topic} in ${subject} for the following course:
+                   ${contextInfo}
+                   
                    Return your response in this exact JSON format:
                    {
                      "concepts": [
@@ -100,6 +120,7 @@ const getSlidePrompt = (slideType, context, options = {}) => {
                        }
                      ]
                    }
+                   
                    Include exactly 4 concepts, each with exactly 3 points.`;
         
         default:
