@@ -1,16 +1,28 @@
 import React from 'react';
+// Import the image from the components folder
+import loadingImage from './logo.png';
 
 const LoadingSpinner = () => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100">
       <div className="flex flex-col items-center space-y-6">
+        {/* Image positioned above the spinner */}
+        <div className="mb-6">
+          <img 
+            src={loadingImage} 
+            alt="Loading" 
+            className="w-32 h-32 object-contain"
+            style={{ filter: 'drop-shadow(0 0 4px rgba(59, 130, 246, 0.5))' }}
+          />
+        </div>
+        
         <div className="relative">
           {/* Circular loading indicator */}
           <div className="w-32 h-32 border-8 border-blue-100 rounded-full"></div>
           <div className="absolute inset-0 border-8 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
           
-          {/* Pulsing inner circle */}
-          <div className="absolute inset-1/4 bg-blue-500 rounded-full animate-ping"></div>
+          {/* Pulsing effect */}
+          <div className="absolute inset-1/4 bg-blue-500 opacity-30 rounded-full animate-ping"></div>
         </div>
         
         {/* Loading text with typing animation */}

@@ -109,7 +109,7 @@ const InputForm = () => {
 
         {/* Footer Section */}
         <div className="px-8 pb-4 text-center text-sm text-gray-500">
-          Powered by advanced AI to create engaging learning content tailored to your needs
+          Powered by edYOU to create engaging learning content tailored to your needs
         </div>
       </div>
     </div>
