@@ -23,9 +23,8 @@ const InputForm = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 sm:p-0">
+  <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 space-y-6">
           {/* Header Section */}
           <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-8 text-center">
             <h1 className="text-3xl font-bold text-white mb-2">Course Generator</h1>
@@ -91,7 +90,6 @@ const InputForm = () => {
           </div>
         </div>
       </div>
-    </div>
   );
 };
 

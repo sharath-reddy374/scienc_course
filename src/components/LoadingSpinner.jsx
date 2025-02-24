@@ -15,7 +15,7 @@ const LoadingSpinner = () => {
         
         {/* Loading text with typing animation */}
         <div className="text-2xl font-semibold text-blue-800 animate-pulse">
-          Loading Next Slide...
+          Loading...
         </div>
         
         {/* Animated loading bar */}
