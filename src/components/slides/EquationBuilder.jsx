@@ -243,6 +243,7 @@ const DropZone = ({ onDrop, tokens, removeToken, challenge }) => {
         else if (token === 'θ') result += '\\theta ';
         else if (token === 'α') result += '\\alpha ';
         else if (token === 'β') result += '\\beta ';
+        else if (token === 'i') result += 'i '; // Imaginary unit
         else result += `${token} `;
         
         i++;
@@ -398,7 +399,7 @@ const EquationBuilder = ({ courseData, onNext, onPrevious, isLast }) => {
     },
     advanced: {
       numbers: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'π', 'e'],
-      variables: ['x', 'y', 'z', 'n', 'α', 'β', 'θ'],
+      variables: ['x', 'y', 'z', 'n', 'α', 'β', 'θ', 'i'],  // Added imaginary unit 'i' here
       operators: ['+', '-', '×', '÷', '=', '≠', '≤', '≥', '<', '>', '(', ')'],
       functions: ['sin', 'cos', 'tan', 'log', '√', '∫', '∑', 'lim'],
       specials: ['^', 'dx', 'dy', 'd', '∂', '→', '⟹'],
@@ -450,6 +451,7 @@ const EquationBuilder = ({ courseData, onNext, onPrevious, isLast }) => {
       Think deeply about mathematical equivalence. For example, "x^2 + 2x + 1", "(x+1)^2", and "x^2 + 2x + 1 = 0" are all different expressions.
       
       When validating, remember to properly interpret power operations (using the ^ symbol) and ensure exponents are correctly processed.
+      For complex number problems, 'i' represents the imaginary unit where i² = -1.
       
       Evaluate strictly but fairly. If the user's expression is close but has minor errors, explain precisely what is wrong.
       \`;`;
@@ -482,7 +484,7 @@ const EquationBuilder = ({ courseData, onNext, onPrevious, isLast }) => {
     setShowHint(false);
   };
 
-    const validateExpression = async () => {
+  const validateExpression = async () => {
     setLoading(true);
     try {
       // Format the equation properly, handling exponents and combining digits

@@ -239,7 +239,7 @@ const getSlidePrompt = (slideType, context, options = {}) => {
                         "type": string,         // Specific subtype of math challenge (be detailed, e.g. "logarithmic_properties", "geometric_series")
                         "question": string,     // The challenge question text - make it clear and educationally valuable
                         "target": string,       // The expected answer or target value
-                        "hint": string          // Optional hint that could help a student who is stuck (without giving away the answer)
+                        "hint": string          // Optional hint that could help a student who is stuck (do not give the exact answer)
                       }
                       
                       For different difficulty levels, follow these guidelines:
@@ -272,7 +272,7 @@ const getSlidePrompt = (slideType, context, options = {}) => {
                       4. Challenge the student to think in new ways
                       
                       Ensure the JSON is valid and the challenge is appropriate for the specified difficulty level.`;
-                      
+
   case 'DETAIL':
           return `Create detailed educational content about "${context.detailPrompt}" in the context of ${subject}: ${topic}.
                  
