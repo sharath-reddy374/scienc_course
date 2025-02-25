@@ -184,40 +184,96 @@ const getSlidePrompt = (slideType, context, options = {}) => {
                    Each concept should have a unique, relevant emoji icon.
                    Ensure all concepts are foundational aspects of ${topic}.`;
 
-        case 'EQUATION_CHALLENGE':
-            return `You are an expert mathematics tutor. Create a NEW and UNIQUE mathematical challenge appropriate for a ${context.difficulty} difficulty level in the subject of ${context.subject}.
-            
-            This is request #${context.timestamp}-${context.seed}, please ensure this challenge is different from any you've created before.
-            
-            ${context.challengeTypes ? `Focus on one of these specific challenge types: ${context.challengeTypes.join(', ')}` : ''}
-            
-            Return your response in the following exact JSON format:
-            {
-              "type": string,         // One of: "arithmetic", "algebra", "calculus", "logic", "sets", etc.
-              "question": string,     // The challenge question text
-              "target": string        // The expected answer or target value
-            }
-            
-            For different difficulty levels, follow these guidelines:
-            
-            Easy:
-            - Simple arithmetic or basic algebraic operations
-            - Clear objectives with straightforward solutions
-            - Limited to basic concepts like addition, subtraction, multiplication, division
-            
-            Medium:
-            - Intermediate algebra, basic calculus, or logical reasoning
-            - May require multiple steps to solve
-            - Can include quadratic equations, basic derivatives, or simple proofs
-            
-            Hard:
-            - Advanced concepts in calculus, logic, or abstract mathematics
-            - Requires deep understanding of mathematical principles
-            - Can include integration, complex logical statements, or set theory
-            
-            Ensure the JSON is valid and the challenge is appropriate for the specified difficulty level.`;
+       
+                   case 'EQUATION_VALIDATION':
+                    return `You are an expert mathematics tutor. Validate whether the user's mathematical expression is equivalent to or correctly solves the given challenge.
+                    
+                    Challenge question: ${context.question}
+                    Expected target: ${context.target}
+                    Challenge type: ${context.type}
+                    User's expression: ${context.userExpression}
+                    
+                    Return your evaluation in the following JSON format:
+                    {
+                      "isValid": boolean,       // true if the user's expression is valid/equivalent, false otherwise
+                      "explanation": string,    // detailed explanation of why the answer is valid or invalid
+                      "hints": [string],        // array of helpful hints if the answer is incorrect (empty array if answer is correct)
+                      "alternativeSolutions": [string]  // other valid approaches if the answer is correct (empty array if incorrect)
+                    }
+                    
+                    Consider all mathematically equivalent forms while being precise about mathematical properties. For example:
+                    
+                    - For logarithm properties:
+                      - log(xy) = log(x) + log(y)
+                      - log(x/y) = log(x) - log(y)
+                      - log(x^n) = n·log(x)
+                    
+                    - For algebraic equivalences, ensure expressions like "x^2 + 2x + 1" and "(x+1)^2" are recognized as equivalent
+                    
+                    - For calculus:
+                      - Verify that derivatives and integrals follow correct rules
+                      - Ensure proper application of the chain rule, product rule, etc.
+                    
+                    Be rigorous in your validation. Mathematical equivalence must be precise - do not accept incorrect applications of mathematical properties.
+                    
+                    For example, if asked to express log(xy) using separate logarithms, only log(x) + log(y) is correct. 
+                    An expression like log(x) × log(y) or log(x) ÷ log(y) would be incorrect.
+                    
+                    Evaluate strictly but explain clearly. If the user's expression is close but has errors, explain precisely what is wrong.
+                    
+                    Provide meaningful, educational feedback regardless of whether the answer is correct or incorrect.`;
 
-        case 'DETAIL':
+
+                    
+                    case 'EQUATION_CHALLENGE':
+                      return `You are an expert mathematics tutor. Create a NEW and UNIQUE mathematical challenge appropriate for a ${context.difficulty} difficulty level in the subject of ${context.subject}.
+                      
+                      This is request #${context.timestamp}-${context.seed}-${context.requestVersion || 'v1'}, please ensure this challenge is different from any you've created before.
+                      
+                      ${context.challengeTypes ? `Focus on ONE of these specific challenge types: ${context.challengeTypes.join(', ')}` : ''}
+                      
+                      ${context.avoidRepeats && context.previousExamples ? `IMPORTANT: Avoid creating challenges similar to these recent examples: ${context.previousExamples}` : ''}
+                      
+                      Return your response in the following exact JSON format:
+                      {
+                        "type": string,         // Specific subtype of math challenge (be detailed, e.g. "logarithmic_properties", "geometric_series")
+                        "question": string,     // The challenge question text - make it clear and educationally valuable
+                        "target": string,       // The expected answer or target value
+                        "hint": string          // Optional hint that could help a student who is stuck (without giving away the answer)
+                      }
+                      
+                      For different difficulty levels, follow these guidelines:
+                      
+                      Easy:
+                      - Simple arithmetic or basic algebraic operations
+                      - Clear objectives with straightforward solutions
+                      - Limited to basic concepts like addition, subtraction, multiplication, division
+                      - Number patterns, basic fraction operations
+                      - Questions should be approachable by students with minimal mathematical background
+                      
+                      Medium:
+                      - Intermediate algebra, basic calculus, or logical reasoning
+                      - May require multiple steps to solve
+                      - Can include quadratic equations, basic derivatives, logarithm properties
+                      - Trigonometric identities, coordinate geometry
+                      - Questions should challenge a high school mathematics student
+                      
+                      Hard:
+                      - Advanced concepts in calculus, logic, or abstract mathematics
+                      - Requires deep understanding of mathematical principles
+                      - Can include integration, complex logical statements, or set theory
+                      - Differential equations, complex number operations, abstract algebra concepts
+                      - Questions should challenge an undergraduate mathematics student
+                      
+                      BE CREATIVE! Don't just use standard textbook problems. Create challenges that:
+                      1. Develop critical thinking
+                      2. Connect different areas of mathematics
+                      3. Relate to real-world applications when possible
+                      4. Challenge the student to think in new ways
+                      
+                      Ensure the JSON is valid and the challenge is appropriate for the specified difficulty level.`;
+                      
+  case 'DETAIL':
           return `Create detailed educational content about "${context.detailPrompt}" in the context of ${subject}: ${topic}.
                  
                  Format your response in this exact JSON structure:

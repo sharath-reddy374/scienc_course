@@ -1,4 +1,3 @@
-// src/components/common/SlideWrapper.jsx
 import React from 'react';
 
 const SlideWrapper = ({ children, className = '' }) => {
