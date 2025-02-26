@@ -57,8 +57,7 @@ const DetailSlide = ({ topic, content, onBack, courseData, isRefreshing, onRefre
   const tabs = [
     { id: 'overview', label: 'Overview', icon: '📚' },
     { id: 'examples', label: 'Examples', icon: '✏️' },
-    { id: 'practice', label: 'Practice', icon: '🎯' },
-    { id: 'resources', label: 'Resources', icon: '📌' }
+    { id: 'practice', label: 'Practice', icon: '🎯' }
   ];
 
   return (
@@ -213,29 +212,6 @@ const DetailSlide = ({ topic, content, onBack, courseData, isRefreshing, onRefre
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
-
-              {activeTab === 'resources' && (
-                <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-blue-800 mb-3 sm:mb-4">Additional Resources</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                    {content.resources?.map((resource, index) => (
-                      <div key={index} className="bg-blue-50 p-4 sm:p-6 rounded-xl hover:shadow-lg transition-shadow">
-                        <h3 className="font-semibold text-blue-800 mb-2">{resource.title}</h3>
-                        <p className="text-blue-600 text-sm sm:text-base">{resource.description}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <button
-                    onClick={handleRefreshContent}
-                    className="mt-4 text-blue-600 hover:text-blue-800 flex items-center text-sm"
-                  >
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    Refresh Content
-                  </button>
                 </div>
               )}
             </>
