@@ -1,33 +1,59 @@
 import React, { useState, useEffect } from 'react';
 import SlideWrapper from '../common/SlideWrapper';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const TOCSlide = ({ courseData, content, onNext, isFirst }) => {
-  const [activeQuest, setActiveQuest] = useState(null);
+  const [hoveredQuest, setHoveredQuest] = useState(null);
   const [isReady, setIsReady] = useState(false);
+  const [hoverButton, setHoverButton] = useState(false);
 
   // Animation sequence effect - Must be called before any conditionals
   useEffect(() => {
-    setIsReady(true);
+    // Staggered animation entrance
+    const timer = setTimeout(() => {
+      setIsReady(true);
+    }, 300);
+    return () => clearTimeout(timer);
   }, []);
   
   // If content isn't available yet, render a loading state
   if (!content) {
     return (
-      <SlideWrapper className="bg-gradient-to-br from-blue-50 to-blue-100">
+      <SlideWrapper className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
         <div className="w-full h-full flex items-center justify-center">
-          <div className="animate-pulse flex flex-col items-center">
-            <div className="h-10 w-64 bg-blue-200 rounded mb-4"></div>
-            <div className="h-6 w-48 bg-blue-100 rounded"></div>
+          <div className="flex flex-col items-center">
+            <motion.div 
+              animate={{ 
+                rotate: 360 
+              }}
+              transition={{ 
+                duration: 2, 
+                repeat: Infinity, 
+                ease: "linear" 
+              }}
+              className="rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mb-6"
+            ></motion.div>
+            <motion.p 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0, 1, 0.5, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="text-blue-600 font-medium text-lg"
+            >
+              Preparing your learning adventure...
+            </motion.p>
           </div>
         </div>
       </SlideWrapper>
     );
   }
 
-  // Enhanced quest interaction with selection tracking
-  const handleQuestSelect = (index) => {
-    setActiveQuest(activeQuest === index ? null : index);
+  // Enhanced quest interaction with hover tracking
+  const handleQuestHoverStart = (index) => {
+    setHoveredQuest(index);
+  };
+  
+  const handleQuestHoverEnd = () => {
+    setHoveredQuest(null);
   };
 
   // Progress calculation
@@ -36,124 +62,197 @@ const TOCSlide = ({ courseData, content, onNext, isFirst }) => {
     0
   ) || 0;
 
-  return (
-    <SlideWrapper className="bg-gradient-to-br from-blue-50 to-blue-200">
-      <div className="w-full h-full flex flex-col items-center p-4 md:p-8 relative overflow-hidden">
-        {/* Animated background elements */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -right-20 -top-20 w-64 h-64 rounded-full bg-blue-400/10"></div>
-          <div className="absolute left-10 bottom-10 w-32 h-32 rounded-full bg-blue-400/10"></div>
-          <div className="absolute right-1/4 bottom-1/4 w-24 h-24 rounded-full bg-blue-400/15"></div>
-        </div>
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  };
 
+  const questCardVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { 
+      opacity: 1, 
+      y: 0,
+      transition: { 
+        type: "spring", 
+        stiffness: 100, 
+        damping: 15 
+      }
+    }
+  };
+  
+  // Determine which cards should be blurred
+  const shouldBlur = hoveredQuest !== null;
+
+  return (
+    <SlideWrapper className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <div className="w-full h-full flex flex-col items-center p-6 md:p-8 relative overflow-auto">
         {/* Title Section with animation */}
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: isReady ? 1 : 0, y: isReady ? 0 : -20 }}
           transition={{ duration: 0.7, delay: 0.2 }}
-          className="text-center mb-6 md:mb-10 mt-2 md:mt-4"
+          className="text-center mb-8 md:mb-10"
         >
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-blue-800 mb-3 md:mb-4 
-                       tracking-tight leading-tight drop-shadow-sm">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-700 bg-clip-text text-transparent mb-4 tracking-tight leading-tight">
             {content.title || `${courseData.subject}: ${courseData.topic}`}
           </h1>
-          <p className="text-base sm:text-lg md:text-xl text-blue-700 max-w-2xl mx-auto">
+          <p className="text-base sm:text-lg md:text-xl text-indigo-700 max-w-2xl mx-auto">
             Embark on an interactive learning journey through {courseData.topic}
           </p>
 
-          {/* Course metadata */}
-          <div className="flex items-center justify-center space-x-4 mt-3">
-            <div className="flex items-center text-blue-600">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span className="text-sm">{content.quests?.length || 0} Quests</span>
+          {/* Course metadata with animated entrance */}
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.5 }}
+            className="flex items-center justify-center space-x-6 mt-5"
+          >
+            <div className="flex items-center text-indigo-600 bg-white/60 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm">
+              <span className="mr-2">{content.quests?.length || 0} Quests</span>
             </div>
-            <div className="flex items-center text-blue-600">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span className="text-sm">{totalObjectives} Objectives</span>
+            <div className="flex items-center text-indigo-600 bg-white/60 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm">
+              <span className="mr-2">{totalObjectives} Objectives</span>
             </div>
-          </div>
+          </motion.div>
         </motion.div>
 
         {/* Quests Grid - With staggered animation */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 w-full max-w-5xl mb-6 md:mb-10">
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-5xl mb-10 relative"
+        >
           {content.quests?.map((quest, index) => (
             <motion.div
               key={index}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: isReady ? 1 : 0, y: isReady ? 0 : 20 }}
-              transition={{ duration: 0.5, delay: 0.3 + index * 0.1 }}
-              className="group relative bg-white rounded-2xl shadow-lg overflow-hidden
-                         transform transition-all duration-300 hover:shadow-xl"
+              variants={questCardVariants}
+              onHoverStart={() => handleQuestHoverStart(index)}
+              onHoverEnd={handleQuestHoverEnd}
+              animate={{
+                scale: hoveredQuest === index ? 1.08 : 1,
+                zIndex: hoveredQuest === index ? 20 : 1,
+                filter: shouldBlur && hoveredQuest !== index ? 'blur(2px)' : 'blur(0px)',
+                opacity: shouldBlur && hoveredQuest !== index ? 0.7 : 1,
+                y: hoveredQuest === index ? -10 : 0,
+                transition: {
+                  type: "spring",
+                  stiffness: 300, 
+                  damping: 20,
+                  filter: { duration: 0.2 },
+                  opacity: { duration: 0.2 }
+                }
+              }}
+              className={`group relative bg-white/90 backdrop-blur-sm rounded-2xl overflow-hidden
+                         transform border border-indigo-100
+                         ${hoveredQuest === index ? 'ring-2 ring-blue-500 shadow-2xl' : 'shadow-lg'}`}
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 to-blue-600/20 
-                              opacity-0 group-hover:opacity-70 transition-opacity"></div>
+              <div className={`absolute top-0 left-0 w-full h-1.5 transition-all duration-500 
+                             ${hoveredQuest === index ? 'bg-gradient-to-r from-blue-500 to-indigo-500' : 'bg-gradient-to-r from-blue-200 to-indigo-200'}`}>
+              </div>
               
-              <div className="p-4 md:p-6 relative">
-                <div className="flex items-center mb-3 md:mb-4">
-                  <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-blue-100 flex items-center justify-center 
-                               text-blue-600 font-bold text-base md:text-lg mr-3 md:mr-4">
+              <div className="p-5 md:p-6 relative">
+                <div className="flex items-center mb-4">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center 
+                               text-white font-bold text-lg mr-4 transition-colors duration-300
+                               ${hoveredQuest === index ? 'bg-gradient-to-br from-blue-500 to-indigo-600' : 'bg-gradient-to-br from-blue-400 to-indigo-400'}`}>
                     {index + 1}
                   </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-blue-800">{quest.title}</h2>
+                  <h2 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-blue-700 to-indigo-600 bg-clip-text text-transparent">
+                    {quest.title}
+                  </h2>
                 </div>
 
-                <ul className="space-y-2 md:space-y-3 mt-3 md:mt-4">
-                  {quest.objectives?.map((objective, idx) => (
-                    <motion.li 
-                      key={idx}
-                      initial={{ opacity: 0, x: -5 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.3, delay: 0.5 + idx * 0.05 }}
-                      className="flex items-start text-blue-700 text-sm md:text-base"
-                    >
-                      <span className="text-green-500 mr-2 text-lg md:text-xl flex-shrink-0">✓</span>
-                      <span>{objective}</span>
-                    </motion.li>
-                  ))}
-                </ul>
+                <p className="text-indigo-600 mb-4 text-sm md:text-base">
+                  {quest.description || `Complete these learning objectives to master ${quest.title.toLowerCase()}.`}
+                </p>
 
-                <div className="absolute bottom-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 to-blue-600 
-                             transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
+                <AnimatePresence>
+                  {hoveredQuest === index && (
+                    <motion.ul 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="space-y-3 mt-4 border-t border-indigo-100 pt-4"
+                    >
+                      {quest.objectives?.map((objective, idx) => (
+                        <motion.li 
+                          key={idx}
+                          initial={{ opacity: 0, x: -5 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.3, delay: 0.1 + idx * 0.05 }}
+                          className="flex items-start text-indigo-700 text-sm md:text-base"
+                        >
+                          <span className="text-green-500 mr-2.5 text-lg flex-shrink-0">✓</span>
+                          <span>{objective}</span>
+                        </motion.li>
+                      ))}
+                    </motion.ul>
+                  )}
+                </AnimatePresence>
+
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 + index * 0.1 }}
+                  className="mt-4 text-center"
+                >
+                  {/* <p className="text-sm text-indigo-500 italic">
+                    Hover to see objectives
+                  </p> */}
+                </motion.div>
               </div>
             </motion.div>
           ))}
-        </div>
+        </motion.div>
 
         {/* Start Button with animation and pulse effect */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: isReady ? 1 : 0, y: isReady ? 0 : 20 }}
           transition={{ duration: 0.5, delay: 0.7 }}
-          className="relative"
+          className="relative mb-6"
+          onHoverStart={() => setHoverButton(true)}
+          onHoverEnd={() => setHoverButton(false)}
         >
-          <div className="absolute -inset-1 bg-blue-500/30 rounded-full blur-md animate-pulse"></div>
-          <button
+          <motion.div 
+            animate={{ 
+              scale: hoverButton ? 1.1 : 1,
+              opacity: hoverButton ? 0.8 : 0.6
+            }}
+            className="absolute -inset-2 bg-gradient-to-r from-blue-400/40 to-indigo-500/40 rounded-full blur-md"
+          ></motion.div>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.98 }}
             onClick={onNext}
-            className="relative bg-blue-600 text-white px-8 py-3.5 md:px-12 md:py-4 rounded-full font-semibold text-base md:text-lg
-                       hover:bg-blue-700 transform hover:scale-105 transition-all duration-300
-                       shadow-lg hover:shadow-xl flex items-center justify-center space-x-3 w-full sm:w-auto min-w-[200px]"
+            className="relative bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-10 py-4 rounded-full 
+                     font-bold text-lg shadow-lg hover:shadow-xl flex items-center justify-center space-x-3 
+                     min-w-[250px]"
           >
-            <span>Start Your Journey</span>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-            </svg>
-          </button>
-        </motion.div>
-
-        {/* Info footer */}
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: isReady ? 0.9 : 0 }}
-          transition={{ duration: 0.5, delay: 0.9 }}
-          className="absolute bottom-3 left-0 right-0 flex justify-center"
-        >
-          {/* <div className="text-xs text-blue-600 bg-white/70 px-3 py-1 rounded-full backdrop-blur-sm">
-      
-          </div> */}
+            <motion.span 
+              animate={{ x: hoverButton ? 5 : 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 10 }}
+            >
+              Begin Your Adventure
+            </motion.span>
+            <motion.span 
+              animate={{ 
+                x: hoverButton ? 5 : 0,
+                scale: hoverButton ? 1.2 : 1
+              }}
+              transition={{ type: "spring", stiffness: 400, damping: 10 }}
+            >
+              →
+            </motion.span>
+          </motion.button>
         </motion.div>
       </div>
     </SlideWrapper>

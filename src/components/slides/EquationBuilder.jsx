@@ -99,7 +99,7 @@ const validateWithOpenAI = async (userExpression, challenge) => {
   }
 };
 
-// Update the DraggableToken component to be more compact
+// Update the DraggableToken component with improved styling
 const DraggableToken = ({ token, category }) => {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: TOKEN_TYPE,
@@ -109,41 +109,30 @@ const DraggableToken = ({ token, category }) => {
     }),
   }));
 
-  // Determine token size and styling based on token type
+  // Determine token style based on category - improved visual differentiation
   const getTokenStyle = () => {
-    if (category === 'numbers') {
-      return 'w-7 h-7 bg-blue-100 text-blue-800';
-    } else if (category === 'variables') {
-      return 'w-7 h-7 bg-green-100 text-green-800';
-    } else if (category === 'operators') {
-      return 'w-7 h-7 bg-yellow-100 text-yellow-800';
-    } else if (category === 'functions') {
-      return 'min-w-[2rem] h-7 px-1 bg-purple-100 text-purple-800';
-    } else if (category === 'specials') {
-      return 'min-w-[1.75rem] h-7 px-1 bg-indigo-100 text-indigo-800';
-    } else if (category === 'logic') {
-      return 'w-7 h-7 bg-red-100 text-red-800';
-    } else if (category === 'sets') {
-      return 'w-7 h-7 bg-teal-100 text-teal-800';
-    }
-    return 'w-7 h-7 bg-gray-100 text-gray-800';
+    const styles = {
+      numbers: "bg-blue-100 text-blue-800 hover:bg-blue-200 border-blue-200",
+      variables: "bg-green-100 text-green-800 hover:bg-green-200 border-green-200",
+      operators: "bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-yellow-200",
+      functions: "bg-purple-100 text-purple-800 hover:bg-purple-200 border-purple-200 font-medium",
+      specials: "bg-indigo-100 text-indigo-800 hover:bg-indigo-200 border-indigo-200",
+      logic: "bg-red-100 text-red-800 hover:bg-red-200 border-red-200",
+      sets: "bg-teal-100 text-teal-800 hover:bg-teal-200 border-teal-200"
+    };
+    
+    const baseClasses = "flex items-center justify-center rounded-md m-1 cursor-move select-none transition-all shadow-sm border";
+    const sizeClasses = category === 'functions' || category === 'specials' 
+      ? "min-w-[2.5rem] h-10 px-2 text-sm" 
+      : "w-10 h-10 text-base";
+    
+    return `${baseClasses} ${styles[category] || "bg-gray-100 text-gray-800 border-gray-200"} ${sizeClasses} ${isDragging ? 'opacity-50 scale-105' : 'opacity-100'}`;
   };
 
   return (
     <div
       ref={drag}
-      className={`
-        flex items-center justify-center 
-        ${getTokenStyle()}
-        m-0.5 
-        border border-current border-opacity-20
-        font-mono text-sm
-        cursor-move select-none
-        transition-all duration-200
-        hover:brightness-95 hover:shadow-sm
-        rounded-md
-        ${isDragging ? 'opacity-50' : 'opacity-100'}
-      `}
+      className={getTokenStyle()}
     >
       {token}
     </div>
@@ -151,7 +140,7 @@ const DraggableToken = ({ token, category }) => {
 };
 
 const DroppedToken = ({ token, onRemove }) => {
-  // Safely display tokens with special handling for operators that might interfere with rendering
+  // Safely display tokens with special handling for operators
   const displayToken = token => {
     // Handle special cases that might cause rendering issues
     if (token === '^') return <span>^</span>;
@@ -159,26 +148,10 @@ const DroppedToken = ({ token, onRemove }) => {
   };
 
   return (
-    <div
-      className="
-        flex items-center 
-        bg-blue-50 border border-blue-200 
-        text-blue-800 rounded-md
-        px-2 py-1 m-0.5 
-        shadow-sm
-        relative
-        font-mono text-sm
-      "
-    >
+    <div className="inline-flex items-center bg-blue-50 border border-blue-200 text-blue-800 rounded-md px-2 py-1 m-0.5 shadow-sm font-mono text-base relative group">
       {displayToken(token)}
       <button
-        className="
-          absolute -top-1 -right-1 
-          w-4 h-4 flex items-center justify-center 
-          bg-red-500 text-white text-xs rounded-full 
-          hover:bg-red-600
-          shadow-sm
-        "
+        className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center bg-red-500 text-white text-xs rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-sm"
         onClick={onRemove}
       >
         ×
@@ -187,11 +160,11 @@ const DroppedToken = ({ token, onRemove }) => {
   );
 };
 
-// Let's update the TokenCategory component for a more compact, tiled design
+// TokenCategory component with improved layout
 const TokenCategory = ({ title, tokens, category }) => (
   <div className="mb-2">
-    <h3 className="text-sm font-semibold mb-1 text-blue-800">{title}</h3>
-    <div className={`flex flex-wrap gap-0.5`}>
+    <h3 className="text-sm font-semibold mb-1 text-gray-700">{title}</h3>
+    <div className="flex flex-wrap">
       {tokens.map((token, index) => (
         <DraggableToken key={index} token={token} category={category} />
       ))}
@@ -262,29 +235,41 @@ const DropZone = ({ onDrop, tokens, removeToken, challenge }) => {
 
   return (
     <div className="mb-4">
-      <div className="bg-blue-100 p-3 rounded-md mb-2 shadow-sm">
-        <h3 className="text-base font-semibold text-blue-800 mb-1">Challenge</h3>
-        <p className="text-blue-700 text-sm">{challenge.question}</p>
-        <div className="mt-1 text-blue-600 text-xs">
-          <span className="font-semibold">Type:</span> {challenge.type.replace(/_/g, ' ')}
+      <div className="bg-blue-50 p-4 rounded-lg mb-3 shadow-sm border border-blue-100 flex justify-between items-start">
+        <div className="flex items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
+          </svg>
+          <div>
+            <h3 className="text-base font-semibold text-blue-800">Challenge</h3>
+            <p className="text-blue-700 text-lg font-medium">{challenge.question}</p>
+          </div>
+        </div>
+        <div className="px-3 py-1 bg-white rounded-md text-sm text-blue-600 border border-blue-100 shadow-sm">
+          Type: <span className="font-semibold">{challenge.type.replace(/_/g, ' ')}</span>
         </div>
       </div>
       
       <div
         ref={drop}
         className={`
-          min-h-[80px] 
-          p-3 rounded-md border-2 border-dashed
+          min-h-[100px] 
+          p-4 rounded-lg border-2
           transition-colors duration-300 
-          ${isOver ? 'border-blue-500 bg-blue-50' : 'border-blue-300 bg-white'}
+          ${isOver ? 'border-blue-500 bg-blue-50' : 'border-dashed border-blue-300 bg-white'}
           ${tokens.length === 0 && 'flex items-center justify-center'}
-          shadow-sm mb-2
+          shadow-sm mb-3
         `}
       >
         {tokens.length === 0 ? (
-          <p className="text-blue-500 text-center text-sm">
-            Drag and drop elements to construct your solution
-          </p>
+          <div className="text-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mx-auto text-blue-300 mb-2" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+            <p className="text-blue-500 text-base">
+              Drag and drop tokens to build your expression
+            </p>
+          </div>
         ) : (
           <div className="flex flex-wrap">
             {tokens.map((token, index) => (
@@ -299,10 +284,9 @@ const DropZone = ({ onDrop, tokens, removeToken, challenge }) => {
       </div>
 
       {tokens.length > 0 && (
-        <div className="mt-2 mb-2">
-          <p className="text-blue-700 mb-1 text-xs">Preview:</p>
-          <div className="bg-white border border-blue-200 rounded-md p-2 shadow-sm">
-            <MathJax inline dynamic>{`\\(${equationStr}\\)`}</MathJax>
+        <div className="mb-3">
+          <div className="bg-white border border-blue-200 rounded-lg p-3 shadow-sm flex items-center justify-center h-14">
+            <MathJax inline dynamic className="text-xl">{`\\(${equationStr}\\)`}</MathJax>
           </div>
         </div>
       )}
@@ -310,72 +294,73 @@ const DropZone = ({ onDrop, tokens, removeToken, challenge }) => {
   );
 };
 
-// Update how we display the tokens UI panel
+// Improved token panel with better layout for better usability
 const TokenPanel = ({ activeTokens }) => {
   return (
-    <div className="bg-white rounded-md shadow-md p-3">
-      <div className="flex flex-wrap">
-        <div className="w-full md:w-1/2 pr-1">
-          <div className="flex flex-col space-y-1">
-            {activeTokens.numbers && (
-              <TokenCategory
-                title="Numbers"
-                tokens={activeTokens.numbers}
-                category="numbers"
-              />
-            )}
-            {activeTokens.variables && (
-              <TokenCategory
-                title="Variables"
-                tokens={activeTokens.variables}
-                category="variables"
-              />
-            )}
-            {activeTokens.operators && (
-              <TokenCategory
-                title="Operators"
-                tokens={activeTokens.operators}
-                category="operators"
-              />
-            )}
-          </div>
+    <div className="bg-white rounded-lg shadow-md p-4 border border-gray-100 mb-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          {activeTokens.numbers && (
+            <TokenCategory
+              title="Numbers"
+              tokens={activeTokens.numbers}
+              category="numbers"
+            />
+          )}
+          
+          {activeTokens.variables && (
+            <TokenCategory
+              title="Variables"
+              tokens={activeTokens.variables}
+              category="variables"
+            />
+          )}
         </div>
         
-        <div className="w-full md:w-1/2 pl-1">
-          <div className="flex flex-col space-y-1">
-            {activeTokens.functions && (
-              <TokenCategory
-                title="Functions"
-                tokens={activeTokens.functions}
-                category="functions"
-              />
-            )}
-            {activeTokens.specials && (
-              <TokenCategory
-                title="Special"
-                tokens={activeTokens.specials}
-                category="specials"
-              />
-            )}
-            <div className="flex space-x-1">
-              <div className="flex-1">
-                {activeTokens.logic && (
-                  <TokenCategory
-                    title="Logic"
-                    tokens={activeTokens.logic}
-                    category="logic"
-                  />
-                )}
-              </div>
-              <div className="flex-1">
-                {activeTokens.sets && (
-                  <TokenCategory
-                    title="Sets"
-                    tokens={activeTokens.sets}
-                    category="sets"
-                  />
-                )}
-              </div>
+        <div>
+          {activeTokens.operators && (
+            <TokenCategory
+              title="Operators"
+              tokens={activeTokens.operators}
+              category="operators"
+            />
+          )}
+          
+          {activeTokens.functions && (
+            <TokenCategory
+              title="Functions"
+              tokens={activeTokens.functions}
+              category="functions"
+            />
+          )}
+          
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              {activeTokens.specials && (
+                <TokenCategory
+                  title="Special"
+                  tokens={activeTokens.specials}
+                  category="specials"
+                />
+              )}
+            </div>
+            <div>
+              {activeTokens.logic && (
+                <TokenCategory
+                  title="Logic"
+                  tokens={activeTokens.logic}
+                  category="logic"
+                />
+              )}
+            </div>
+            <div>
+              {activeTokens.sets && (
+                <TokenCategory
+                  title="Sets"
+                  tokens={activeTokens.sets}
+                  category="sets"
+                />
+              )}
             </div>
           </div>
         </div>
@@ -399,7 +384,7 @@ const EquationBuilder = ({ courseData, onNext, onPrevious, isLast }) => {
     },
     advanced: {
       numbers: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'π', 'e'],
-      variables: ['x', 'y', 'z', 'n', 'α', 'β', 'θ', 'i'],  // Added imaginary unit 'i' here
+      variables: ['x', 'y', 'z', 'n', 'α', 'β', 'θ', 'i'],
       operators: ['+', '-', '×', '÷', '=', '≠', '≤', '≥', '<', '>', '(', ')'],
       functions: ['sin', 'cos', 'tan', 'log', '√', '∫', '∑', 'lim'],
       specials: ['^', 'dx', 'dy', 'd', '∂', '→', '⟹'],
@@ -578,206 +563,285 @@ const EquationBuilder = ({ courseData, onNext, onPrevious, isLast }) => {
     }
   };
 
+  // Redesigned layout with solution area at the bottom
   return (
     <DndProvider backend={HTML5Backend}>
       <MathJaxContext>
         <SlideWrapper className="bg-gradient-to-br from-blue-50 to-blue-100">
           <div className="w-full h-full flex flex-col p-4">
-            <header className="text-center mb-2">
-              <h1 className="text-xl font-bold text-blue-800 mb-1">
-                {courseData?.topic || 'Mathematical Expression Builder'}
-              </h1>
-              <p className="text-xs text-blue-600">Build and solve mathematical challenges</p>
-            </header>
-
-            <div className="flex justify-center items-center mb-2">
-              <div className="flex gap-1">
+            {/* Header with title and difficulty controls */}
+            <header className="flex justify-between items-center mb-4 pb-2 border-b border-blue-100">
+              <div>
+                <h1 className="text-xl font-bold text-blue-800">
+                  {courseData?.topic || 'Equation Builder Challenge'}
+                </h1>
+                <p className="text-sm text-blue-600">Master mathematical expressions with interactive challenges</p>
+              </div>
+              
+              <div className="flex gap-2">
                 {['easy', 'medium', 'hard'].map((level) => (
                   <button
                     key={level}
                     onClick={() => setDifficulty(level)}
                     className={`
-                      px-3 py-1 rounded-md text-xs font-semibold transition-all duration-300
+                      px-4 py-2 rounded-md text-sm font-semibold transition-colors
                       ${difficulty === level 
                         ? 'bg-blue-600 text-white shadow-sm' 
-                        : 'bg-white text-blue-600 hover:bg-blue-50'}
+                        : 'bg-white text-blue-600 hover:bg-blue-50 border border-blue-200'}
                     `}
                   >
                     {level.charAt(0).toUpperCase() + level.slice(1)}
                   </button>
                 ))}
               </div>
-            </div>
+            </header>
             
-            {loading && !challenge ? (
-              <div className="flex justify-center items-center my-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-                <span className="ml-2 text-blue-600 text-sm">Loading...</span>
-              </div>
-            ) : challenge ? (
-              <DropZone
-                tokens={equationTokens}
-                onDrop={handleDrop}
-                removeToken={removeToken}
-                challenge={challenge}
-              />
-            ) : (
-              <div className="text-center text-red-500 my-2 text-sm">
-                Failed to load challenge. Please try again.
-              </div>
-            )}
+            {/* Main content area */}
+            <div className="flex-grow flex flex-col overflow-auto">
+              {loading && !challenge ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+                  <span className="ml-3 text-blue-600 text-lg">Loading challenge...</span>
+                </div>
+              ) : challenge ? (
+                <>
+                  {/* Challenge drop zone */}
+                  <DropZone
+                    tokens={equationTokens}
+                    onDrop={handleDrop}
+                    removeToken={removeToken}
+                    challenge={challenge}
+                  />
+                  
+                  {/* Token panel */}
+                  <TokenPanel activeTokens={getActiveTokens()} />
+                  
+                  {/* Action buttons */}
+                  <div className="grid grid-cols-4 gap-3 mb-4">
+                    <button
+                      onClick={validateExpression}
+                      className="
+                        col-span-1
+                        bg-blue-600 text-white px-4 py-2 rounded-lg
+                        hover:bg-blue-700 transition-colors
+                        shadow-sm font-semibold text-base flex items-center justify-center
+                      "
+                      disabled={loading}
+                    >
+                      {loading ? (
+                        <>
+                          <span className="animate-spin h-4 w-4 mr-2 border-t-2 border-b-2 border-white rounded-full"></span>
+                          Checking...
+                        </>
+                      ) : (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                          Check Answer
+                        </>
+                      )}
+                    </button>
+                    
+                    <button
+                      onClick={resetEquation}
+                      className="
+                        col-span-1
+                        bg-white text-blue-600 px-4 py-2 rounded-lg
+                        hover:bg-blue-50 transition-colors
+                        shadow-sm font-semibold text-base flex items-center justify-center
+                        border border-blue-200
+                      "
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                      </svg>
+                      Reset
+                    </button>
+                    
+                    <button
+                      onClick={newChallenge}
+                      className="
+                        col-span-1
+                        bg-green-500 text-white px-4 py-2 rounded-lg
+                        hover:bg-green-600 transition-colors
+                        shadow-sm font-semibold text-base flex items-center justify-center
+                      "
+                      disabled={loading}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+                      </svg>
+                      New Challenge
+                    </button>
+                    
+                    {challenge && challenge.target && (
+                      <button
+                        onClick={toggleHint}
+                        className="
+                          col-span-1
+                          bg-yellow-400 text-yellow-900 px-4 py-2 rounded-lg
+                          hover:bg-yellow-500 transition-colors
+                          shadow-sm font-semibold text-base flex items-center justify-center
+                        "
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1v-3a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                        {showHint ? 'Hide Hint' : 'Show Hint'}
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Results or hint display area at the bottom */}
+                  {(result || showHint) && (
+                    <div className={`rounded-lg shadow-md border mb-4 ${result ? 'bg-white' : 'bg-yellow-50 border-yellow-200'}`}>
+                      {showHint && !result && (
+                        <div className="p-4">
+                          <h3 className="text-base font-semibold text-yellow-800 mb-2 flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z" />
+                            </svg>
+                            Hint
+                          </h3>
+                          <div className="bg-white p-3 rounded-md border border-yellow-100">
+                            <p className="text-yellow-800 text-base">Try constructing:</p>
+                            <div className="mt-1 flex justify-center">
+                              <MathJax inline dynamic className="text-lg font-medium">
+                                {`\\(${challenge.target}\\)`}
+                              </MathJax>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
-            {/* Replace the original token display with our new compact panel */}
-            <TokenPanel activeTokens={getActiveTokens()} />
-
-            <div className="flex flex-wrap gap-2 mt-3 justify-center">
-              <button
-                onClick={validateExpression}
-                className="
-                  bg-blue-600 text-white px-3 py-1 rounded-md
-                  hover:bg-blue-700 transition-all duration-300
-                  shadow-sm font-semibold text-xs
-                "
-                disabled={loading}
-              >
-                {loading ? (
-                  <span className="flex items-center">
-                    <span className="animate-spin h-3 w-3 mr-1 border-t-2 border-b-2 border-white rounded-full"></span>
-                    Checking...
-                  </span>
-                ) : 'Check Answer'}
-              </button>
-              <button
-                onClick={resetEquation}
-                className="
-                  bg-white text-blue-600 px-3 py-1 rounded-md
-                  hover:bg-blue-50 transition-all duration-300
-                  shadow-sm font-semibold text-xs
-                "
-              >
-                Reset
-              </button>
-              <button
-                onClick={newChallenge}
-                className="
-                  bg-green-500 text-white px-3 py-1 rounded-md
-                  hover:bg-green-600 transition-all duration-300
-                  shadow-sm font-semibold text-xs
-                "
-                disabled={loading}
-              >
-                New Challenge
-              </button>
-              {challenge && challenge.target && (
-                <button
-                  onClick={toggleHint}
-                  className="
-                    bg-yellow-500 text-white px-3 py-1 rounded-md
-                    hover:bg-yellow-600 transition-all duration-300
-                    shadow-sm font-semibold text-xs
-                  "
-                >
-                  {showHint ? 'Hide Hint' : 'Show Hint'}
-                </button>
+                      {result && (
+                        <div className="p-4">
+                          <h3 className="text-base font-semibold mb-2 text-blue-800 flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1v-3a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                            Result
+                          </h3>
+                          
+                          <div className="space-y-3">
+                            {result.isValid ? (
+                              <div className="bg-green-50 border border-green-200 rounded-md p-3 text-green-800 flex items-center">
+                                <svg className="w-6 h-6 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <span className="font-semibold text-base">Correct! Your solution works perfectly.</span>
+                              </div>
+                            ) : (
+                              <div className="bg-red-50 border border-red-200 rounded-md p-3 text-red-800 flex items-center">
+                                <svg className="w-6 h-6 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <span className="font-semibold text-base">Not quite right yet. Keep trying!</span>
+                              </div>
+                            )}
+                            
+                            {result.explanation && (
+                              <div className="bg-blue-50 p-3 rounded-md border border-blue-100">
+                                <p className="text-blue-800 text-base">
+                                  {result.explanation
+                                    .replace(/The user's/g, "Your")
+                                    .replace(/the user's/g, "your")
+                                    .replace(/The user /g, "You ")
+                                    .replace(/the user /g, "you ")
+                                    .replace(/user/g, "you")}
+                                </p>
+                              </div>
+                            )}
+                            
+                            {result.hints && result.hints.length > 0 && (
+                              <div className="mt-2">
+                                <h4 className="text-sm font-semibold text-gray-700 mb-1">Helpful hints:</h4>
+                                <ul className="space-y-1 pl-5 list-disc">
+                                  {result.hints.map((hint, index) => (
+                                    <li key={index} className="text-blue-700 text-base">
+                                      {hint
+                                        .replace(/The user should/g, "You should")
+                                        .replace(/the user should/g, "you should")}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            
+                            {result.alternativeSolutions && result.alternativeSolutions.length > 0 && (
+                              <div className="mt-2">
+                                <h4 className="text-sm font-semibold text-gray-700 mb-1">Alternative approaches:</h4>
+                                <ul className="space-y-1 pl-5 list-disc">
+                                  {result.alternativeSolutions.map((solution, index) => (
+                                    <li key={index} className="text-blue-700 text-base">
+                                      {solution}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex items-center justify-center h-full bg-red-50 rounded-lg border border-red-200 p-6">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-red-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span className="text-red-700 text-lg font-medium">Failed to load challenge. Please try again.</span>
+                </div>
               )}
             </div>
-
-            {showHint && (
-              <div className="mt-2 p-2 rounded-md bg-yellow-50 border border-yellow-200 shadow-sm">
-                <h3 className="text-sm font-semibold text-yellow-800 mb-1">Hint</h3>
-                <p className="text-yellow-700 text-xs">
-                  Try constructing: {challenge.target}
-                </p>
-              </div>
-            )}
-
-            {result && (
-              <div className="mt-2 p-3 rounded-md bg-white border border-blue-200 shadow-sm">
-                <h3 className="text-base font-semibold text-blue-800 mb-1">Result</h3>
-                <div className="space-y-2">
-                  {result.isValid ? (
-                    <div className="text-green-600 font-semibold text-sm flex items-center">
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                      </svg>
-                      Correct!
-                    </div>
-                  ) : (
-                    <div className="text-red-600 font-semibold text-sm flex items-center">
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-                      </svg>
-                      Not quite right
-                    </div>
-                  )}
-                  
-                  {result.explanation && (
-                    <div className="bg-blue-50 p-2 rounded-md">
-                      <p className="text-blue-700 text-xs">
-                        {/* Transform explanation to directly address the user */}
-                        {result.explanation
-                          .replace(/The user's/g, "Your")
-                          .replace(/the user's/g, "your")
-                          .replace(/The user /g, "You ")
-                          .replace(/the user /g, "you ")
-                          .replace(/user/g, "you")}
-                      </p>
-                    </div>
-                  )}
-                  
-                  {result.hints && result.hints.length > 0 && (
-                    <div className="mt-2">
-                      <h4 className="text-xs font-semibold text-blue-700 mb-1">Helpful hints:</h4>
-                      <ul className="list-disc pl-4 space-y-0.5">
-                        {result.hints.map((hint, index) => (
-                          <li key={index} className="text-blue-600 text-xs">
-                            {/* Make hints directly address the user */}
-                            {hint
-                              .replace(/The user should/g, "You should")
-                              .replace(/the user should/g, "you should")}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  
-                  {result.alternativeSolutions && result.alternativeSolutions.length > 0 && (
-                    <div className="mt-2">
-                      <h4 className="text-xs font-semibold text-blue-700 mb-1">Other approaches you could try:</h4>
-                      <ul className="list-disc pl-4 space-y-0.5">
-                        {result.alternativeSolutions.map((solution, index) => (
-                          <li key={index} className="text-blue-600 text-xs">{solution}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="mt-auto flex justify-between pt-3">
+            
+            {/* Bottom navigation */}
+            <div className="mt-auto flex justify-between pt-2 border-t border-blue-100">
               <button
                 onClick={onPrevious}
-                className="bg-white text-blue-600 px-3 py-1 rounded-md shadow-sm
-                          hover:bg-blue-50 transition-all duration-300 text-xs"
+                className="
+                  bg-white text-blue-600 px-6 py-3 rounded-lg shadow-sm
+                  hover:bg-blue-50 transition-colors font-semibold text-base
+                  border border-blue-200 flex items-center
+                "
               >
-                ← Prev
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                Previous
               </button>
+              
               {isLast ? (
                 <button
                   onClick={() => alert('Course completed!')}
-                  className="bg-green-500 text-white px-3 py-1 rounded-md shadow-sm
-                          hover:bg-green-600 transition-all duration-300 text-xs"
+                  className="
+                    bg-gradient-to-r from-green-500 to-emerald-600 text-white 
+                    px-6 py-3 rounded-lg shadow-sm font-semibold text-base
+                    hover:from-green-600 hover:to-emerald-700 transition-colors
+                    flex items-center
+                  "
                 >
-                  Complete ✓
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Complete Course
                 </button>
               ) : (
                 <button
                   onClick={onNext}
-                  className="bg-blue-600 text-white px-3 py-1 rounded-md shadow-sm
-                          hover:bg-blue-700 transition-all duration-300 text-xs"
+                  className="
+                    bg-gradient-to-r from-blue-500 to-indigo-600 text-white 
+                    px-6 py-3 rounded-lg shadow-sm font-semibold text-base
+                    hover:from-blue-600 hover:to-indigo-700 transition-colors
+                    flex items-center
+                  "
                 >
-                  Next →
+                  Next
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
                 </button>
               )}
             </div>

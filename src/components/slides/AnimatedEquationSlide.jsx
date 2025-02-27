@@ -338,9 +338,9 @@ const EquationTransformer = ({ steps }) => {
               onChange={handleSpeedChange} 
               className="text-xs border rounded p-1 bg-white focus:ring-indigo-500 focus:border-indigo-500"
             >
-              <option value={500}>Fast</option>
-              <option value={1000}>Normal</option>
-              <option value={2000}>Slow</option>
+              <option value={1000}>Fast</option>
+              <option value={1500}>Normal</option>
+              <option value={3000}>Slow</option>
             </select>
           </div>
         </div>
@@ -961,7 +961,7 @@ const AnimatedEquationSlide = ({ courseData, content, onNext, onPrevious, isFirs
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              Previous Slide
+              Previous
             </motion.button>
             
             {isLast ? (

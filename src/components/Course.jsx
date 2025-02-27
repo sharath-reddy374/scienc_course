@@ -52,7 +52,7 @@ const Course = () => {
     // { component: ProbabilitySimulatorSlide, title: 'Probability Simulator', contentKey: 'probabilitySimulator' },
     { component: MatchingSlide, title: 'Matching Exercise', contentKey: 'matching' },
     { component: EquationBuilder, title: 'Equation Builder', contentKey: 'equation' },
-    // { component: AnimatedEquationSlide, title: 'Animated Equations', contentKey: 'animatedEquation' }
+    { component: AnimatedEquationSlide, title: 'Animated Equations', contentKey: 'animatedEquation' }
   ];
 
   // Map contentKey to the type used in generateSlideContent.

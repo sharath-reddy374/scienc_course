@@ -134,19 +134,22 @@ const getSlidePrompt = (slideType, context, options = {}) => {
                       Generate a completely new and unique quiz question that is based on the provided course description (if available). 
                       Ensure the quiz question does not repeat any previous questions and tests a different aspect of the topic.
                     `;
-                
-              
+                  
                     return `
                       Create a thorough introduction for the following course:
                       ${contextInfo}
-                
+                  
                       The introduction should:
-                      - Provide at least one paragraph explaining the key concepts, background, and relevance of "${topic}" in the context of "${subject}".
-                      - Highlight real-life applications or examples to show why this topic is important.
-                      - If a description is provided, incorporate it meaningfully into your introduction.
-                
+                  -     Provide at least one paragraph explaining the key concepts, background, and relevance of "${topic}" in the context of "${subject}".
+                  +     Provide at least one paragraph explaining the key concepts, background, and relevance of "${topic}" in the context of "${subject}".
+                  +     Use Markdown formatting where appropriate. For example:
+                  +       - Bullet points for lists
+                  +       - Separate paragraphs with blank lines
+                  +       - Bold or italic text for emphasis
+                  +     Include at least one bulleted list to demonstrate important points or examples.
+                  
                       ${quizQuestionInstruction}
-                
+                  
                       Return your response in this exact JSON format:
                       {
                         "description": "course description",
@@ -157,7 +160,7 @@ const getSlidePrompt = (slideType, context, options = {}) => {
                         }
                       }
                     `;
-                
+                  
                 
         
         case 'TYPES':
@@ -226,55 +229,71 @@ const getSlidePrompt = (slideType, context, options = {}) => {
 
                     
                     case 'EQUATION_CHALLENGE':
-                      return `You are an expert mathematics tutor. Create a NEW and UNIQUE mathematical challenge appropriate for a ${context.difficulty} difficulty level in the subject of ${context.subject}.
-                      
-                      This is request #${context.timestamp}-${context.seed}-${context.requestVersion || 'v1'}, please ensure this challenge is different from any you've created before.
-                      
-                      ${context.challengeTypes ? `Focus on ONE of these specific challenge types: ${context.challengeTypes.join(', ')}` : ''}
-                      
-                      ${context.avoidRepeats && context.previousExamples ? `IMPORTANT: Avoid creating challenges similar to these recent examples: ${context.previousExamples}` : ''}
-                      
-                      Return your response in the following exact JSON format:
-                      {
-                        "type": string,         // Specific subtype of math challenge (be detailed, e.g. "logarithmic_properties", "geometric_series")
-                        "question": string,     // The challenge question text - make it clear and educationally valuable
-                        "target": string,       // The expected answer or target value
-                        "hint": string          // Optional hint that could help a student who is stuck (do not give the exact answer)
-                      }
-                      
-                      For different difficulty levels, follow these guidelines:
-                      
-                      Easy:
-                      - Simple arithmetic or basic algebraic operations
-                      - Clear objectives with straightforward solutions
-                      - Limited to basic concepts like addition, subtraction, multiplication, division
-                      - Number patterns, basic fraction operations
-                      - Questions should be approachable by students with minimal mathematical background
-                      
-                      Medium:
-                      - Intermediate algebra, basic calculus, or logical reasoning
-                      - May require multiple steps to solve
-                      - Can include quadratic equations, basic derivatives, logarithm properties
-                      - Trigonometric identities, coordinate geometry
-                      - Questions should challenge a high school mathematics student
-                      - The questions should be single line answers, do not include "prove" questions
-                      
-                      Hard:
-                      - Advanced concepts in calculus, logic, or abstract mathematics
-                      - Requires deep understanding of mathematical principles
-                      - Can include integration, complex logical statements, or set theory
-                      - Differential equations, complex number operations, abstract algebra concepts
-                      - Questions should challenge an undergraduate mathematics student
-                      - The questions should be single line answers, do not include "prove" questions
-                      
-                      BE CREATIVE! Don't just use standard textbook problems. Create challenges that:
-                      1. Develop critical thinking
-                      2. Connect different areas of mathematics
-                      3. Relate to real-world applications when possible
-                      4. Challenge the student to think in new ways
-                      
-                      Ensure the JSON is valid and the challenge is appropriate for the specified difficulty level.`;
-
+                          return `You are an expert mathematics tutor. Create a NEW and UNIQUE mathematical challenge appropriate for a ${context.difficulty} difficulty level in the subject of ${context.subject}.
+                          
+                          This is request #${context.timestamp}-${context.seed}-${context.requestVersion || 'v1'}, please ensure this challenge is different from any you've created before.
+                          
+                          IMPORTANT CONSTRAINT: The challenge MUST be solvable using ONLY the following tokens available in the UI:
+                          
+                          Numbers: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, π, e
+                          Variables: x, y, z, n, α, β, θ, i
+                          Operators: +, -, ×, ÷, =, ≠, ≤, ≥, <, >, (, )
+                          Functions: sin, cos, tan, log, √, ∫, Σ, lim
+                          Special: ^, dx, dy, d, ∂, →, ⇒
+                          Logic: ∀, ∃, →, ∧, ∨, ¬, ⊤, ⊥, T
+                          Sets: ∈, ⊂, ⊆, ∪, ∩, ∅, \\
+                          
+                          ${context.challengeTypes ? `Focus on ONE of these specific challenge types: ${context.challengeTypes.join(', ')}` : ''}
+                          
+                          ${context.avoidRepeats && context.previousExamples ? `IMPORTANT: Avoid creating challenges similar to these recent examples: ${context.previousExamples}` : ''}
+                          
+                          Return your response in the following exact JSON format:
+                          {
+                            "type": string,         // Specific subtype of math challenge (be detailed, e.g. "logarithmic_properties", "geometric_series")
+                            "question": string,     // The challenge question text - make it clear and educationally valuable
+                            "target": string,       // The expected answer or target value that can be built using ONLY the available tokens
+                            "hint": string          // Optional hint that could help a student who is stuck (do not give the exact answer)
+                          }
+                          
+                          For different difficulty levels, follow these guidelines:
+                          
+                          Easy:
+                          - Simple arithmetic or basic algebraic operations
+                          - Clear objectives with straightforward solutions
+                          - Limited to basic concepts like addition, subtraction, multiplication, division
+                          - Number patterns, basic fraction operations
+                          - Questions should be approachable by students with minimal mathematical background
+                          - The question must be solvable using the following only ( Numbers: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, π and operators: +,-,x, ÷,(,),=)
+                          
+                          Medium:
+                          - Intermediate algebra, basic calculus, or logical reasoning
+                          - May require multiple steps to solve
+                          - Can include quadratic equations, basic derivatives, logarithm properties
+                          - Trigonometric identities, coordinate geometry
+                          - Questions should challenge a high school mathematics student
+                          - The questions should be single line answers, do not include "prove" questions
+                          
+                          Hard:
+                          - concepts in calculus, logic, or abstract mathematics
+                          - Requires deep understanding of mathematical principles
+                          - Can include integration, complex logical statements, or set theory
+                          - Differential equations, complex number operations, abstract algebra concepts
+                          - Questions should challenge an undergraduate mathematics student
+                          - The questions should be single line answers, do not include "prove" questions
+                          
+                          BE CREATIVE! Don't just use standard textbook problems. Create challenges that:
+                          1. Develop critical thinking
+                          2. Connect different areas of mathematics
+                          3. Relate to real-world applications when possible
+                          4. Challenge the student to think in new ways
+                          
+                          VERY IMPORTANT:
+                          - Verify that BOTH the question and the target solution can be expressed using ONLY the tokens listed above
+                          - The target should be a mathematical expression or equation that can be constructed by dragging and dropping the available tokens
+                          - Do not use any symbols, functions, or operators that are not in the token list
+                          - Avoid problems requiring extensive algebraic manipulations that would need too many symbols
+                          
+                          Ensure the JSON is valid and the challenge is appropriate for the specified difficulty level.`;
   case 'DETAIL':
           return `Create detailed educational content about "${context.detailPrompt}" in the context of ${subject}: ${topic}.
                  
@@ -288,9 +307,9 @@ const getSlidePrompt = (slideType, context, options = {}) => {
                      }
                    ],
                    "examples": [
-                     "Example 1 with specific details",
-                     "Example 2 with specific details",
-                     "Example 3 with specific details"
+                     "1 with specific details",
+                     "2 with specific details",
+                     "3 with specific details"
                    ],
                    "exercises": [
                      {
@@ -309,6 +328,10 @@ const getSlidePrompt = (slideType, context, options = {}) => {
                  Include exactly 4 key points, 3 examples, 2 practice exercises.
                  Make sure each section is comprehensive and educational.
                  For the exercises, ensure the correctAnswer index matches the actual correct option (0-based indexing).`;
+
+
+
+                 
                  case 'MATCHING':
                   // Add a timestamp and random seed to ensure varied content each time
                   const seed = Math.floor(Math.random() * 10000);
