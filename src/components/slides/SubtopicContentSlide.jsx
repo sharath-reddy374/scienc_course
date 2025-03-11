@@ -2,6 +2,9 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SlideWrapper from '../common/SlideWrapper';
 import LoadingSpinner from '../LoadingSpinner';
+import DatabaseService from '../../services/databaseService';
+
+
 
 const SubtopicContentSlide = React.memo(({
   courseData,
@@ -13,7 +16,8 @@ const SubtopicContentSlide = React.memo(({
   onPrevious,
   onReturnToQuest,
   onRefreshContent,
-  isRefreshing
+  isRefreshing,
+  courseId
 }) => {
   // State for section navigation
   const [currentSection, setCurrentSection] = useState(0); // 0: Overview, 1: Key Points, 2: Examples, 3: Practice Exercises, 4: Matching Exercises
@@ -68,6 +72,13 @@ const SubtopicContentSlide = React.memo(({
 
   const isMountedRef = useRef(true);
   
+
+
+  useEffect(() => {
+    console.log("SubtopicContentSlide received courseId:", courseId);
+  }, [courseId]);
+
+
   // Run once when component mounts/unmounts
   useEffect(() => {
     isMountedRef.current = true;
@@ -84,6 +95,86 @@ const SubtopicContentSlide = React.memo(({
 
   // Topic identifier for tracking topic changes
   const topicIdentifierRef = useRef(null);
+
+
+
+
+// Add this in a component like SubtopicContentSlide.jsx
+useEffect(() => {
+  // Test database connectivity
+  const testDatabase = async () => {
+    if (courseId) {
+      console.log("Testing database write operation with courseId:", courseId);
+      try {
+        // Try to write a simple test object
+        const result = await DatabaseService.storeSubtopicSection(
+          courseId,
+          0, // quest index
+          0, // subtopic index
+          "test",
+          { testData: "This is a test at " + new Date().toISOString() }
+        );
+        console.log("Database write test result:", result);
+      } catch (error) {
+        console.error("Database write test failed:", error);
+      }
+    } else {
+      console.warn("No courseId available for database operations");
+    }
+  };
+  
+  testDatabase();
+}, [courseId]);
+
+
+//initial database check on mount - MODIFIED for course-specific content
+useEffect(() => {
+  if (questIndex === null || subtopicIndex === null || !courseId) return;
+  
+  // Check if we already have content in the database for THIS SPECIFIC COURSE
+  const checkDatabase = async () => {
+    try {
+      // This will only get content for the specific courseId
+      const dbContent = await DatabaseService.getSubtopicContent(courseId, questIndex, subtopicIndex);
+      
+      if (dbContent) {
+        console.log(`Found subtopic content in database for course ${courseId}:`, dbContent);
+        
+        // Mark all sections that exist in database as loaded
+        Object.keys(dbContent).forEach(section => {
+          if (Object.values(sectionToDataMap).includes(section) && dbContent[section]) {
+            const sectionKey = `${questIndex}-${subtopicIndex}-${section}`;
+            contentLoadedRef.current[sectionKey] = true;
+            console.log(`Marked ${section} as loaded from database for course ${courseId}`);
+          }
+        });
+        
+        // If this is a first load and we have database content,
+        // update the parent component's state
+        if (onRefreshContentRef.current && !subtopicContent) {
+          onRefreshContentRef.current({
+            questIndex,
+            subtopicIndex,
+            sectionType: 'all', // Special case to indicate all sections
+            fromDatabase: true,
+            databaseContent: dbContent
+          });
+        }
+      } else {
+        console.log(`No content found in database for course ${courseId}, will generate fresh content`);
+      }
+    } catch (err) {
+      console.error(`Error checking database for content for course ${courseId}:`, err);
+    }
+  };
+  
+  // Only run this once on mount
+  checkDatabase();
+}, [questIndex, subtopicIndex, courseId, subtopicContent, sectionToDataMap]);
+
+
+
+
 
   // Mark existing content as loaded on initial render
   useEffect(() => {
@@ -149,6 +240,20 @@ const SubtopicContentSlide = React.memo(({
             if (isMountedRef.current) {
               const sectionKey = `${questIndex}-${subtopicIndex}-${sectionType}`;
               contentLoadedRef.current[sectionKey] = true;
+              
+              // Save the result to database if we have a courseId
+              if (courseId && result && result[sectionType]) {
+                DatabaseService.storeSubtopicSection(
+                  courseId,
+                  questIndex,
+                  subtopicIndex,
+                  sectionType,
+                  result[sectionType]
+                ).catch(err => {
+                  console.error(`Error saving ${sectionType} to database:`, err);
+                });
+              }
+              
               resolve(result);
             }
           })
@@ -177,7 +282,7 @@ const SubtopicContentSlide = React.memo(({
           });
       }, 100); // 100ms debounce delay
     });
-  }, [currentSection]); // Only depend on currentSection
+  }, [currentSection, courseId]);
 
   // Clean up timeouts on unmount
   useEffect(() => {
@@ -258,116 +363,148 @@ const SubtopicContentSlide = React.memo(({
     };
   }, []);
 
-  // IMPROVED: Preload content in the background - more efficient with less re-renders
-  const preloadAllSectionContent = useCallback(() => {
-    if (questIndex === null || subtopicIndex === null || !onRefreshContentRef.current || fetchingRef.current) {
-      return;
-    }
-    
-    if (__DEV__) console.log("Preloading all section content at once");
-    
-    // Store which sections we need to fetch BEFORE modifying any state
-    const sectionsToFetch = [];
-    
-    // Define all the sections we want to load
-    ['overview', 'keyPoints', 'examples', 'exercises', 'matchingExercises'].forEach(sectionType => {
-      const sectionKey = `${questIndex}-${subtopicIndex}-${sectionType}`;
-      
-      // Skip if already loaded
-      if (contentLoadedRef.current[sectionKey]) {
-        if (__DEV__) console.log(`Section ${sectionType} already loaded, skipping`);
-        return;
-      }
-      
-      // Skip if already being fetched
-      if (contentFetchAttemptedRef.current[sectionType]) {
-        if (__DEV__) console.log(`Section ${sectionType} fetch already attempted, skipping`);
-        return;
-      }
-      
-      // Skip if content already exists
-      if (subtopicContent && subtopicContent[sectionType]) {
-        contentLoadedRef.current[sectionKey] = true;
-        if (__DEV__) console.log(`Content for ${sectionType} exists, marking as loaded`);
-        return;
-      }
-      
-      // If we got here, we need to fetch this section
-      sectionsToFetch.push(sectionType);
-    });
-    
-    // If nothing to fetch, we're done
-    if (sectionsToFetch.length === 0) {
-      if (__DEV__) console.log("All sections already loaded");
-      return;
-    }
-    
-    if (__DEV__) console.log(`Preloading these sections: ${sectionsToFetch.join(', ')}`);
-    
-    // Critical change: Mark ALL sections as being fetched BEFORE starting any fetches
-    // This prevents the cascade of state updates triggering re-renders
-    sectionsToFetch.forEach(sectionType => {
-      contentFetchAttemptedRef.current[sectionType] = true;
-    });
-    
-    // Only update loading state for the current section to avoid re-renders
-    const currentSectionType = sectionToDataMap[currentSection];
-    if (sectionsToFetch.includes(currentSectionType)) {
-      setIsLoadingSectionContent(prev => ({
-        ...prev,
-        [currentSectionType]: true
-      }));
-    }
-    
-    // Use a worker function that doesn't trigger state updates during processing
-    const loadSections = async () => {
-      for (let i = 0; i < sectionsToFetch.length; i++) {
-        if (!isMountedRef.current) break;
+
+// Function to preload all subtopic sections in the background
+const preloadAllSectionContent = useCallback(() => {
+  if (questIndex === null || subtopicIndex === null || !onRefreshContentRef.current || fetchingRef.current) {
+    return;
+  }
+  
+  if (__DEV__) console.log("Preloading all section content in the background");
+  
+  // Define all sections we want to load 
+  const sectionsToLoad = ['overview', 'keyPoints', 'examples', 'exercises', 'matchingExercises'];
+  
+  // First check if we have complete data in the database
+  if (courseId) {
+    (async () => {
+      try {
+        // Check for complete subtopic content in database
+        const dbContent = await DatabaseService.getSubtopicContent(courseId, questIndex, subtopicIndex);
         
-        const sectionType = sectionsToFetch[i];
-        if (__DEV__) console.log(`Starting to load section: ${sectionType}`);
-        
-        try {
-          await onRefreshContentRef.current({
-            questIndex,
-            subtopicIndex,
-            sectionType,
-            forceRefresh: false
+        if (dbContent) {
+          console.log("Found complete content in database:", dbContent);
+          
+          // Mark sections as loaded if they exist in database
+          Object.keys(dbContent).forEach(section => {
+            if (sectionsToLoad.includes(section) && dbContent[section]) {
+              const sectionKey = `${questIndex}-${subtopicIndex}-${section}`;
+              contentLoadedRef.current[sectionKey] = true;
+              console.log(`Marked ${section} as loaded from database`);
+            }
           });
           
-          if (isMountedRef.current) {
-            // Mark as loaded on success without triggering a re-render
-            contentLoadedRef.current[`${questIndex}-${subtopicIndex}-${sectionType}`] = true;
-            if (__DEV__) console.log(`Successfully loaded section: ${sectionType}`);
+          // Update parent state with the complete database content - IMPORTANT
+          if (onRefreshContentRef.current) {
+            onRefreshContentRef.current({
+              questIndex,
+              subtopicIndex, 
+              sectionType: 'all',
+              fromDatabase: true,
+              databaseContent: dbContent
+            });
           }
-        } catch (error) {
-          console.error(`Error fetching ${sectionType}:`, error);
-          // Reset attempted flag so we can try again
-          if (isMountedRef.current) {
-            contentFetchAttemptedRef.current[sectionType] = false;
+          
+          // Filter out sections that already exist in database
+          const remainingSections = sectionsToLoad.filter(section => 
+            !dbContent[section] || 
+            (Array.isArray(dbContent[section]) && dbContent[section].length === 0)
+          );
+          
+          // If everything is loaded, we're done
+          if (remainingSections.length === 0) {
+            console.log("All sections already loaded from database");
+            return;
           }
-        }
-        
-        // Add a small delay between requests to prevent overwhelming the API
-        await new Promise(resolve => setTimeout(resolve, 300));
-      }
-      
-      // Only update loading state at the end of all loading
-      if (isMountedRef.current) {
-        setIsLoadingSectionContent(prev => {
-          const newState = {...prev};
-          sectionsToFetch.forEach(sectionType => {
-            newState[sectionType] = false;
+          
+          // Load remaining sections one by one with delay
+          remainingSections.forEach((sectionType, index) => {
+            setTimeout(() => {
+              if (!isMountedRef.current) return;
+              console.log(`Background loading ${sectionType}`);
+              
+              // Mark as attempted to prevent duplicate fetches
+              contentFetchAttemptedRef.current[sectionType] = true;
+              
+              onRefreshContentRef.current({
+                questIndex,
+                subtopicIndex,
+                sectionType,
+                forceRefresh: false
+              }).catch(err => console.error(`Error preloading ${sectionType}:`, err));
+            }, index * 500);
           });
-          return newState;
-        });
+        } else {
+          // No content in database, load all sections normally
+          loadSectionsSequentially(sectionsToLoad);
+        }
+      } catch (err) {
+        console.error("Error checking database for content:", err);
+        // Fall back to normal loading
+        loadSectionsSequentially(sectionsToLoad);
       }
-    };
-    
-    // Start the loading process
-    loadSections();
-  }, [questIndex, subtopicIndex, currentSection, subtopicContent, sectionToDataMap]);
+    })();
+  } else {
+    // No courseId, load normally
+    loadSectionsSequentially(sectionsToLoad);
+  }
+}, [questIndex, subtopicIndex, courseId]);
 
+
+const loadSectionsSequentially = (sectionsToLoad) => {
+  // Only show loading indicator for current section
+  const currentSectionType = sectionToDataMap[currentSection];
+  
+  // First load current section (for immediate visibility)
+  if (sectionsToLoad.includes(currentSectionType) && 
+      !contentLoadedRef.current[`${questIndex}-${subtopicIndex}-${currentSectionType}`]) {
+    setIsLoadingSectionContent(prev => ({
+      ...prev,
+      [currentSectionType]: true
+    }));
+    
+    onRefreshContentRef.current({
+      questIndex,
+      subtopicIndex,
+      sectionType: currentSectionType,
+      forceRefresh: false
+    }).finally(() => {
+      if (isMountedRef.current) {
+        setIsLoadingSectionContent(prev => ({
+          ...prev,
+          [currentSectionType]: false
+        }));
+        contentLoadedRef.current[`${questIndex}-${subtopicIndex}-${currentSectionType}`] = true;
+      }
+    });
+  }
+  
+  // Then load other sections in background without showing loading state
+  const otherSections = sectionsToLoad.filter(section => 
+    section !== currentSectionType && 
+    !contentLoadedRef.current[`${questIndex}-${subtopicIndex}-${section}`]
+  );
+  
+  otherSections.forEach((sectionType, index) => {
+    setTimeout(() => {
+      if (!isMountedRef.current) return;
+      
+      // Don't show loading state for background sections
+      contentFetchAttemptedRef.current[sectionType] = true;
+      
+      onRefreshContentRef.current({
+        questIndex,
+        subtopicIndex,
+        sectionType,
+        forceRefresh: false
+      }).then(() => {
+        if (isMountedRef.current) {
+          contentLoadedRef.current[`${questIndex}-${subtopicIndex}-${sectionType}`] = true;
+        }
+      }).catch(err => console.error(`Error loading ${sectionType}:`, err));
+    }, (index + 1) * 500);
+  });
+};
 
   
   // Loading effect for current section content
@@ -500,7 +637,7 @@ const SubtopicContentSlide = React.memo(({
   }, [currentSection, onReturnToQuest]);
 
   // Force refresh current section content - OPTIMIZED
-   const handleForceRefreshCurrentSection = useCallback(() => {
+  const handleForceRefreshCurrentSection = useCallback(() => {
     if (fetchingRef.current) {
       console.log("Refresh already in progress, skipping duplicate request");
       return;
@@ -512,7 +649,6 @@ const SubtopicContentSlide = React.memo(({
     contentFetchAttemptedRef.current[currentSectionType] = false;
     delete contentLoadedRef.current[`${questIndex}-${subtopicIndex}-${currentSectionType}`];
     
-    // Set single loading state update
     setIsLoadingSectionContent(prev => ({
       ...prev,
       [currentSectionType]: true
@@ -521,12 +657,25 @@ const SubtopicContentSlide = React.memo(({
     // Set fetching flag to prevent duplicate requests
     fetchingRef.current = true;
     
-    // Execute the API call
     onRefreshContentRef.current({
       questIndex,
       subtopicIndex,
       sectionType: currentSectionType,
       forceRefresh: true
+    })
+    .then(result => {
+      // Save the result to database if we have a courseId
+      if (courseId && result && result[currentSectionType]) {
+        DatabaseService.storeSubtopicSection(
+          courseId,
+          questIndex,
+          subtopicIndex,
+          currentSectionType,
+          result[currentSectionType]
+        ).catch(err => {
+          console.error(`Error saving ${currentSectionType} to database:`, err);
+        });
+      }
     })
     .finally(() => {
       if (isMountedRef.current) {
@@ -537,7 +686,7 @@ const SubtopicContentSlide = React.memo(({
         }));
       }
     });
-  }, [currentSection, questIndex, subtopicIndex, sectionToDataMap]);
+  }, [currentSection, questIndex, subtopicIndex, courseId, sectionToDataMap]);
 
 
   // Interactive exercise handlers

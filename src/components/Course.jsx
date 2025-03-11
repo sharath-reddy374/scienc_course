@@ -8,6 +8,7 @@ import DetailedQuestSlide from './slides/DetailedQuestSlide';
 import WelcomeSlide from './slides/WelcomeSlide';
 import SubtopicContentSlide from './slides/SubtopicContentSlide';
 import CourseSummarySlide from './slides/CourseSummarySlide';
+import DatabaseService from '../services/databaseService';
 
 import { 
   generateSlideContent, 
@@ -55,13 +56,34 @@ const Course = () => {
       navigate('/');
       return;
     }
+    
+    // Ensure courseData has an id
+    if (!data.id) {
+      data.id = Date.now().toString(); // Generate an id if not present
+    }
+    
     setCourseData(data);
   }, [navigate]);
 
 
-
+// Add this to your component initialization
+useEffect(() => {
+  // Initialize course in database if needed
+  const initializeCourseInDb = async () => {
+    if (!courseData?.id) return;
+    
+    try {
+      await DatabaseService.initializeCourse(courseData);
+      console.log('Course initialized in database');
+    } catch (err) {
+      console.error('Error initializing course in database:', err);
+    }
+  };
   
-// Add/modify this useEffect in Course.jsx
+  initializeCourseInDb();
+}, [courseData]);
+  
+
 useEffect(() => {
   // This will update slides when anything related to subtopic display changes
   if (isShowingQuestDetail || isShowingSubtopicContent || selectedSubtopicIndex !== null) {
@@ -142,10 +164,10 @@ useEffect(() => {
         
    
     const baseSlides = [
-      { component: WelcomeSlide, title: 'Welcome', contentKey: 'welcome' },
-      { component: TOCSlide, title: 'Table of Contents', contentKey: 'toc' },
-      { component: MemoryGameSlide, title: 'Memory Matching Game', contentKey: 'memory' },
-      { component: CourseSummarySlide, title: 'Course Summary', contentKey: 'summary' }
+      { component: WelcomeSlide, title: 'Welcome', contentKey: 'welcome' ,  props: { courseId: courseData?.id } },
+      { component: TOCSlide, title: 'Table of Contents', contentKey: 'toc' ,  props: { courseId: courseData?.id } },
+      { component: MemoryGameSlide, title: 'Memory Matching Game', contentKey: 'memory' ,  props: { courseId: courseData?.id } },
+      { component: CourseSummarySlide, title: 'Course Summary', contentKey: 'summary' ,  props: { courseId: courseData?.id } }
     ];
       
        // In getSlides function - add these lines at the beginning to debug content sources
@@ -196,7 +218,8 @@ useEffect(() => {
               questIndex: selectedQuestIndex,
               subtopicIndex: selectedSubtopicIndex,
               subtopicContent: subtopicContent, // Use the merged content
-              onRefreshContent: handleFetchSubtopicContent
+              onRefreshContent: handleFetchSubtopicContent,
+              urseId: courseData?.i
             }
           },
           ...baseSlides.slice(2) // All slides after TOC
@@ -275,6 +298,20 @@ useEffect(() => {
       return;
     }
     
+    // First check database if we have this content
+    if (!forceRefresh && courseData?.id) {
+      try {
+        const dbContent = await DatabaseService.getSlideContent(courseData.id, contentKey);
+        if (dbContent) {
+          console.log(`Using ${contentKey} content from database`);
+          setSlideContents((prev) => ({ ...prev, [contentKey]: dbContent }));
+          return dbContent;
+        }
+      } catch (err) {
+        console.error(`Error fetching ${contentKey} from database:`, err);
+      }
+    }
+    
     // Skip if we already have this content in state and not forcing a refresh
     if (!forceRefresh && slideContents[contentKey]) {
       console.log(`Using cached content for ${contentKey}`);
@@ -289,28 +326,34 @@ useEffect(() => {
     try {
       setIsRefreshing(prev => ({ ...prev, [contentKey]: true }));
       
-     if (contentKey === 'welcome') {
-        const data = await fetchWelcomeContent(courseData);
-        setSlideContents((prev) => ({ ...prev, [contentKey]: data }));
-      }
-
-      // In fetchSlideContent function
-      else if (contentKey === 'memory') {
-        const data = await fetchMemoryContent(courseData);
-        setSlideContents((prev) => ({ ...prev, [contentKey]: data }));
-      }
-
-      else {
+      let data;
+      if (contentKey === 'welcome') {
+        data = await fetchWelcomeContent(courseData);
+      } else if (contentKey === 'memory') {
+        data = await fetchMemoryContent(courseData);
+      } else {
         console.log(`Generating content for ${contentKey} using type ${type}`);
-        const data = await generateSlideContent(type, courseData, options);
+        data = await generateSlideContent(type, courseData, options);
         console.log(`Received data for ${contentKey}:`, data);
-        setSlideContents((prev) => ({ ...prev, [contentKey]: data }));
       }
+      
+      // Update state
+      setSlideContents((prev) => ({ ...prev, [contentKey]: data }));
+      
+      // Save to database
+      if (courseData?.id) {
+        try {
+          await DatabaseService.storeSlideContent(courseData.id, contentKey, data);
+          console.log(`Saved ${contentKey} to database`);
+        } catch (err) {
+          console.error(`Error saving ${contentKey} to database:`, err);
+        }
+      }
+      
+      return data;
     } catch (error) {
       console.error(`Error fetching ${contentKey} content:`, error);
-    } 
-    
-    finally {
+    } finally {
       // Clear the pending request flag when done
       delete pendingRequests[contentKey];
       setIsRefreshing(prev => ({ ...prev, [contentKey]: false }));
@@ -319,7 +362,7 @@ useEffect(() => {
 
 
 
-  const preloadRemainingSubtopicSections = (questIndex, subtopicIndex, existingContent) => {
+  const preloadRemainingSubtopicSections = async (questIndex, subtopicIndex, existingContent) => {
     // List of all section types
     const allSectionTypes = ['keyPoints', 'examples', 'exercises', 'matchingExercises'];
     
@@ -331,7 +374,38 @@ useEffect(() => {
     
     console.log(`Preloading remaining sections for subtopic ${questIndex}-${subtopicIndex}:`, sectionsToFetch);
     
-    // Load each section with a small delay between them
+    // First check if sections exist in database
+    if (courseData?.id) {
+      for (const sectionType of [...sectionsToFetch]) {
+        try {
+          const dbContent = await DatabaseService.getSubtopicContent(courseData.id, questIndex, subtopicIndex);
+          
+          if (dbContent && dbContent[sectionType]) {
+            console.log(`Found ${sectionType} in database for subtopic ${questIndex}-${subtopicIndex}`);
+            
+            // Remove from sections to fetch
+            const index = sectionsToFetch.indexOf(sectionType);
+            if (index > -1) {
+              sectionsToFetch.splice(index, 1);
+            }
+            
+            // Update our state with this content
+            const subtopicKey = `${questIndex}-${subtopicIndex}`;
+            setQuestSubtopics(prev => ({
+              ...prev,
+              [subtopicKey]: {
+                ...prev[subtopicKey],
+                ...dbContent
+              }
+            }));
+          }
+        } catch (err) {
+          console.error(`Error checking database for ${sectionType}:`, err);
+        }
+      }
+    }
+    
+    // Load remaining sections from API with a delay
     sectionsToFetch.forEach((sectionType, index) => {
       setTimeout(() => {
         console.log(`Background loading ${sectionType}`);
@@ -503,6 +577,58 @@ const handleFetchSubtopicContent = async ({ questIndex, subtopicIndex, sectionTy
       // Get the key for this subtopic in our state
       const subtopicKey = `${questIndex}-${subtopicIndex}`;
       
+      // First check if content exists in database
+      if (!forceRefresh && courseData?.id) {
+        try {
+          const dbContent = await DatabaseService.getSubtopicContent(courseData.id, questIndex, subtopicIndex);
+          
+          if (dbContent && dbContent[sectionType]) {
+            console.log(`Using ${sectionType} content from database for subtopic ${subtopicKey}`);
+            
+            // Update state with database content
+            setQuestSubtopics(prev => ({
+              ...prev,
+              [subtopicKey]: dbContent
+            }));
+            
+            // Also update TOC content
+            setSlideContents(prev => {
+              // Create a deep copy to ensure React detects the change
+              const updatedToc = JSON.parse(JSON.stringify(prev.toc));
+              
+              // Check if the quest and subtopic exist
+              if (updatedToc.quests?.[questIndex]?.subtopics?.[subtopicIndex]) {
+                // Make sure the content property exists
+                updatedToc.quests[questIndex].subtopics[subtopicIndex].content = 
+                  updatedToc.quests[questIndex].subtopics[subtopicIndex].content || {};
+                
+                // Update with database content
+                updatedToc.quests[questIndex].subtopics[subtopicIndex].content = {
+                  ...updatedToc.quests[questIndex].subtopics[subtopicIndex].content,
+                  ...dbContent
+                };
+              }
+              
+              return {
+                ...prev,
+                toc: updatedToc
+              };
+            });
+            
+            // If preloadAll is requested and we have database content,
+            // still check for missing sections
+            if (preloadAll) {
+              preloadRemainingSubtopicSections(questIndex, subtopicIndex, dbContent);
+            }
+            
+            return dbContent;
+          }
+        } catch (err) {
+          console.error(`Error fetching subtopic content from database:`, err);
+        }
+      }
+      
+      // If not in database or forcing refresh, continue with normal flow...
       // Get existing content from questSubtopics
       const existingContent = questSubtopics[subtopicKey] || {};
       console.log(`Existing content for ${subtopicKey} in questSubtopics:`, existingContent);
@@ -522,6 +648,7 @@ const handleFetchSubtopicContent = async ({ questIndex, subtopicIndex, sectionTy
         return existingContent;
       }
       
+      // Rest of your existing function to generate content from API...
       // Get the TOC content from state
       const tocContent = slideContents.toc;
       if (!tocContent || !tocContent.quests) {
@@ -610,6 +737,21 @@ const handleFetchSubtopicContent = async ({ questIndex, subtopicIndex, sectionTy
       
       console.log(`Updated content for ${sectionType}:`, updatedSubtopicContent);
       
+      // Save to database
+      if (courseData?.id) {
+        try {
+          await DatabaseService.storeSubtopicContent(
+            courseData.id, 
+            questIndex, 
+            subtopicIndex, 
+            updatedSubtopicContent
+          );
+          console.log(`Saved subtopic content to database`);
+        } catch (err) {
+          console.error(`Error saving subtopic content to database:`, err);
+        }
+      }
+      
       // Create a new questSubtopics object to ensure React detects the change
       const newQuestSubtopics = {
         ...questSubtopics,
@@ -656,13 +798,11 @@ const handleFetchSubtopicContent = async ({ questIndex, subtopicIndex, sectionTy
       if (preloadAll && sectionType === 'overview') {
         preloadRemainingSubtopicSections(questIndex, subtopicIndex, updatedSubtopicContent);
       } else {
-        // Otherwise, follow the normal sequential preloading pattern
-        // Preload next section if this is the overview
+        // Continue with your existing sequential preloading...
         if (sectionType === 'overview') {
           setTimeout(() => {
             if (!updatedSubtopicContent.keyPoints) {
               console.log("Preloading keyPoints in background...");
-              // This will be processed asynchronously, no need to await
               handleFetchSubtopicContent({
                 questIndex,
                 subtopicIndex,
@@ -672,34 +812,7 @@ const handleFetchSubtopicContent = async ({ questIndex, subtopicIndex, sectionTy
             }
           }, 2000);
         }
-        // Similarly preload examples if this is keyPoints
-        else if (sectionType === 'keyPoints') {
-          setTimeout(() => {
-            if (!updatedSubtopicContent.examples) {
-              console.log("Preloading examples in background...");
-              handleFetchSubtopicContent({
-                questIndex,
-                subtopicIndex,
-                sectionType: 'examples',
-                forceRefresh: false
-              });
-            }
-          }, 2000);
-        }
-        // And preload exercises if this is examples
-        else if (sectionType === 'examples') {
-          setTimeout(() => {
-            if (!updatedSubtopicContent.exercises) {
-              console.log("Preloading exercises in background...");
-              handleFetchSubtopicContent({
-                questIndex,
-                subtopicIndex,
-                sectionType: 'exercises',
-                forceRefresh: false
-              });
-            }
-          }, 2000);
-        }
+        // Similarly for other sections...
       }
       
       // Return the updated content
@@ -725,6 +838,7 @@ const handleFetchSubtopicContent = async ({ questIndex, subtopicIndex, sectionTy
   
   return requestPromise;
 };
+
 
 
 
