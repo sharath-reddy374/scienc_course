@@ -1,36 +1,64 @@
 import React, { useState, useEffect } from 'react';
-import SlideWrapper from '../common/SlideWrapper';
 import { motion, AnimatePresence } from 'framer-motion';
+import SlideWrapper from '../common/SlideWrapper';
 
-const TOCSlide = ({ courseData, content, onNext, isFirst }) => {
+const TOCSlide = ({ 
+  courseData, 
+  content, 
+  onNext, 
+  onPrevious, 
+  onQuestSelect, 
+  onBeginAdventure, 
+  isRefreshing 
+}) => {
+  // Set 16:9 aspect ratio while preserving all functionality
+  const containerStyle = {
+    aspectRatio: '16/9',
+    maxHeight: '100vh',
+    margin: '0 auto',
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column'
+  };
+  
+  const [selectedQuest, setSelectedQuest] = useState(null);
   const [hoveredQuest, setHoveredQuest] = useState(null);
   const [isReady, setIsReady] = useState(false);
-  const [hoverButton, setHoverButton] = useState(false);
 
-  // Animation sequence effect - Must be called before any conditionals
   useEffect(() => {
-    // Staggered animation entrance
+    // Animation sequence effect
     const timer = setTimeout(() => {
       setIsReady(true);
     }, 300);
     return () => clearTimeout(timer);
   }, []);
-  
-  // If content isn't available yet, render a loading state
-  if (!content) {
+
+  // Handle quest click - both select quest and call the parent handler
+  const handleQuestClick = (index) => {
+    setSelectedQuest(index);
+    if (onQuestSelect) {
+      console.log("TOCSlide: handleQuestClick called with index:", index);
+      onQuestSelect(index);
+    }
+  };
+
+  // Handle Begin Adventure click
+  const handleBeginAdventure = () => {
+    if (onBeginAdventure) {
+      console.log("TOCSlide: handleBeginAdventure called");
+      onBeginAdventure();
+    }
+  };
+
+  if (!content || !content.quests) {
+    // Show loading state if no content
     return (
-      <SlideWrapper className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-        <div className="w-full h-full flex items-center justify-center">
+      <SlideWrapper className="bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50">
+        <div style={containerStyle} className="w-full flex items-center justify-center">
           <div className="flex flex-col items-center">
             <motion.div 
-              animate={{ 
-                rotate: 360 
-              }}
-              transition={{ 
-                duration: 2, 
-                repeat: Infinity, 
-                ease: "linear" 
-              }}
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
               className="rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mb-6"
             ></motion.div>
             <motion.p 
@@ -39,7 +67,7 @@ const TOCSlide = ({ courseData, content, onNext, isFirst }) => {
               transition={{ duration: 2, repeat: Infinity }}
               className="text-blue-600 font-medium text-lg"
             >
-              Preparing your learning adventure...
+              {isRefreshing ? "Refreshing course content..." : "Preparing your learning adventure..."}
             </motion.p>
           </div>
         </div>
@@ -47,213 +75,175 @@ const TOCSlide = ({ courseData, content, onNext, isFirst }) => {
     );
   }
 
-  // Enhanced quest interaction with hover tracking
-  const handleQuestHoverStart = (index) => {
-    setHoveredQuest(index);
-  };
-  
-  const handleQuestHoverEnd = () => {
-    setHoveredQuest(null);
-  };
-
-  // Progress calculation
-  const totalObjectives = content.quests?.reduce(
-    (total, quest) => total + (quest.objectives?.length || 0), 
-    0
-  ) || 0;
-
   // Animation variants
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
-      transition: {
-        staggerChildren: 0.1
+      transition: { 
+        staggerChildren: 0.1,
+        delayChildren: 0.3
       }
     }
   };
 
-  const questCardVariants = {
+  const itemVariants = {
     hidden: { opacity: 0, y: 20 },
-    visible: { 
-      opacity: 1, 
+    visible: {
+      opacity: 1,
       y: 0,
-      transition: { 
-        type: "spring", 
-        stiffness: 100, 
-        damping: 15 
-      }
+      transition: { type: 'spring', stiffness: 100, damping: 15 }
     }
   };
-  
-  // Determine which cards should be blurred
-  const shouldBlur = hoveredQuest !== null;
 
   return (
-    <SlideWrapper className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      <div className="w-full h-full flex flex-col items-center p-6 md:p-8 relative overflow-auto">
-        {/* Title Section with animation */}
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: isReady ? 1 : 0, y: isReady ? 0 : -20 }}
-          transition={{ duration: 0.7, delay: 0.2 }}
-          className="text-center mb-8 md:mb-10"
+    <SlideWrapper className="bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50">
+      <div style={containerStyle} className="w-full flex flex-col p-4 md:p-6 lg:p-8 relative">
+        {/* Background decorative elements */}
+        <div className="absolute -bottom-20 -right-20 w-72 h-72 bg-blue-400/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute -top-20 -left-20 w-72 h-72 bg-indigo-400/10 rounded-full blur-3xl pointer-events-none"></div>
+        
+        {/* Back button */}
+        <motion.button
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5 }}
+          onClick={onPrevious}
+          className="absolute top-6 left-6 z-10 flex items-center space-x-2 text-indigo-700 hover:text-indigo-900 transition-colors"
         >
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-700 bg-clip-text text-transparent mb-4 tracking-tight leading-tight">
-            {content.title || `${courseData.subject}: ${courseData.topic}`}
-          </h1>
-          <p className="text-base sm:text-lg md:text-xl text-indigo-700 max-w-2xl mx-auto">
-            Embark on an interactive learning journey through {courseData.topic}
-          </p>
-
-          {/* Course metadata with animated entrance */}
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.5 }}
-            className="flex items-center justify-center space-x-6 mt-5"
+          <svg 
+            className="w-5 h-5" 
+            xmlns="http://www.w3.org/2000/svg" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
           >
-            <div className="flex items-center text-indigo-600 bg-white/60 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm">
-              <span className="mr-2">{content.quests?.length || 0} Quests</span>
-            </div>
-            <div className="flex items-center text-indigo-600 bg-white/60 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm">
-              <span className="mr-2">{totalObjectives} Objectives</span>
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+          <span className="font-medium">Back</span>
+        </motion.button>
+        
+        <div className="w-full h-full max-w-6xl mx-auto flex flex-col">
+          {/* Header */}
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: isReady ? 1 : 0, y: isReady ? 0 : -20 }}
+            transition={{ duration: 0.7 }}
+            className="text-center mb-4 md:mb-6 flex-shrink-0"
+          >
+            <h1 className="text-2xl md:text-3xl lg:text-4xl font-extrabold bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-700 bg-clip-text text-transparent mb-2 tracking-tight">
+              {content.title || courseData.title || "Your Learning Adventure"}
+            </h1>
+            <p className="text-sm md:text-base text-indigo-700/80 max-w-3xl mx-auto">
+              {content.description || "Embark on an exciting journey to master new concepts through interactive quests and challenges."}
+            </p>
+          </motion.div>
+
+          {/* Scrollable Quests Grid - key change is here */}
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="flex-grow overflow-y-auto" // This is critical for scrolling
+            style={{ 
+              minHeight: 0, // This forces flex items to be able to scroll
+              scrollbarWidth: 'thin',
+              scrollbarColor: 'rgba(79, 70, 229, 0.2) transparent'
+            }}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 md:gap-6 pb-4">
+              {content.quests.map((quest, index) => (
+                <motion.div
+                  key={index}
+                  variants={itemVariants}
+                  whileHover={{ 
+                    scale: 1.02, 
+                    boxShadow: "0 15px 30px -10px rgba(66, 71, 200, 0.15)"
+                  }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => handleQuestClick(index)}
+                  onHoverStart={() => setHoveredQuest(index)}
+                  onHoverEnd={() => setHoveredQuest(null)}
+                  className="bg-white rounded-xl shadow-md transition-all duration-300 cursor-pointer overflow-hidden h-full flex flex-col"
+                >
+                  {/* Colored top bar */}
+                  <div className={`h-2 bg-gradient-to-r ${index % 2 === 0 ? 'from-blue-500 to-indigo-600' : 'from-indigo-500 to-purple-600'}`}></div>
+                  
+                  <div className="p-4 md:p-6 flex flex-col h-full">
+                    {/* Quest identifier */}
+                    <div className="mb-3">
+                      <span className={`px-3 py-1 rounded-md text-white text-sm font-semibold bg-gradient-to-r ${index % 2 === 0 ? 'from-blue-500 to-indigo-600' : 'from-indigo-500 to-purple-600'}`}>
+                        Quest {index + 1}
+                      </span>
+                    </div>
+                    
+                    {/* Quest title */}
+                    <div className="mb-3">
+                      <h3 className="text-lg md:text-xl font-bold text-gray-800">
+                        {quest.title}
+                      </h3>
+                    </div>
+                    
+                    {/* Objectives - with internal scrolling if needed */}
+                    <div className="mb-3 flex-grow overflow-y-auto">
+                      <p className="text-xs uppercase tracking-wider text-gray-500 mb-2">Topics:</p>
+                      <ul className="space-y-1 pr-1"> {/* Added padding for scroll */}
+                        {quest.objectives?.map((objective, idx) => (
+                          <li key={idx} className="text-sm text-gray-700 flex items-start">
+                            <span className="inline-block w-4 h-4 rounded-full bg-indigo-100 text-indigo-800 flex-shrink-0 mr-2 mt-0.5 flex items-center justify-center text-xs">
+                              {idx + 1}
+                            </span>
+                            <span>{objective.split('.')[0]}.</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    
+                    {/* Progress indicator if subtopics exist */}
+                    {quest.subtopics && quest.subtopics.length > 0 && (
+                      <div className="mt-auto">
+                        <div className="flex justify-between text-xs text-gray-500 mb-1">
+                          <span>Progress</span>
+                          <span>
+                            {quest.subtopics.filter(s => s.content).length} / {quest.subtopics.length} topics
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full bg-gradient-to-r ${index % 2 === 0 ? 'from-blue-500 to-indigo-600' : 'from-indigo-500 to-purple-600'}`}
+                            style={{ 
+                              width: `${(quest.subtopics.filter(s => s.content).length / quest.subtopics.length) * 100}%` 
+                            }}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
             </div>
           </motion.div>
-        </motion.div>
 
-        {/* Quests Grid - With staggered animation */}
-        <motion.div 
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-5xl mb-10 relative"
-        >
-          {content.quests?.map((quest, index) => (
-            <motion.div
-              key={index}
-              variants={questCardVariants}
-              onHoverStart={() => handleQuestHoverStart(index)}
-              onHoverEnd={handleQuestHoverEnd}
-              animate={{
-                scale: hoveredQuest === index ? 1.08 : 1,
-                zIndex: hoveredQuest === index ? 20 : 1,
-                filter: shouldBlur && hoveredQuest !== index ? 'blur(2px)' : 'blur(0px)',
-                opacity: shouldBlur && hoveredQuest !== index ? 0.7 : 1,
-                y: hoveredQuest === index ? -10 : 0,
-                transition: {
-                  type: "spring",
-                  stiffness: 300, 
-                  damping: 20,
-                  filter: { duration: 0.2 },
-                  opacity: { duration: 0.2 }
-                }
-              }}
-              className={`group relative bg-white/90 backdrop-blur-sm rounded-2xl overflow-hidden
-                         transform border border-indigo-100
-                         ${hoveredQuest === index ? 'ring-2 ring-blue-500 shadow-2xl' : 'shadow-lg'}`}
-            >
-              <div className={`absolute top-0 left-0 w-full h-1.5 transition-all duration-500 
-                             ${hoveredQuest === index ? 'bg-gradient-to-r from-blue-500 to-indigo-500' : 'bg-gradient-to-r from-blue-200 to-indigo-200'}`}>
-              </div>
-              
-              <div className="p-5 md:p-6 relative">
-                <div className="flex items-center mb-4">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center 
-                               text-white font-bold text-lg mr-4 transition-colors duration-300
-                               ${hoveredQuest === index ? 'bg-gradient-to-br from-blue-500 to-indigo-600' : 'bg-gradient-to-br from-blue-400 to-indigo-400'}`}>
-                    {index + 1}
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-blue-700 to-indigo-600 bg-clip-text text-transparent">
-                    {quest.title}
-                  </h2>
-                </div>
-
-                <p className="text-indigo-600 mb-4 text-sm md:text-base">
-                  {quest.description || `Complete these learning objectives to master ${quest.title.toLowerCase()}.`}
-                </p>
-
-                <AnimatePresence>
-                  {hoveredQuest === index && (
-                    <motion.ul 
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="space-y-3 mt-4 border-t border-indigo-100 pt-4"
-                    >
-                      {quest.objectives?.map((objective, idx) => (
-                        <motion.li 
-                          key={idx}
-                          initial={{ opacity: 0, x: -5 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ duration: 0.3, delay: 0.1 + idx * 0.05 }}
-                          className="flex items-start text-indigo-700 text-sm md:text-base"
-                        >
-                          <span className="text-green-500 mr-2.5 text-lg flex-shrink-0">✓</span>
-                          <span>{objective}</span>
-                        </motion.li>
-                      ))}
-                    </motion.ul>
-                  )}
-                </AnimatePresence>
-
-                <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.3 + index * 0.1 }}
-                  className="mt-4 text-center"
-                >
-                  {/* <p className="text-sm text-indigo-500 italic">
-                    Hover to see objectives
-                  </p> */}
-                </motion.div>
-              </div>
-            </motion.div>
-          ))}
-        </motion.div>
-
-        {/* Start Button with animation and pulse effect */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: isReady ? 1 : 0, y: isReady ? 0 : 20 }}
-          transition={{ duration: 0.5, delay: 0.7 }}
-          className="relative mb-6"
-          onHoverStart={() => setHoverButton(true)}
-          onHoverEnd={() => setHoverButton(false)}
-        >
-          <motion.div 
-            animate={{ 
-              scale: hoverButton ? 1.1 : 1,
-              opacity: hoverButton ? 0.8 : 0.6
-            }}
-            className="absolute -inset-2 bg-gradient-to-r from-blue-400/40 to-indigo-500/40 rounded-full blur-md"
-          ></motion.div>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={onNext}
-            className="relative bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-10 py-4 rounded-full 
-                     font-bold text-lg shadow-lg hover:shadow-xl flex items-center justify-center space-x-3 
-                     min-w-[250px]"
+          {/* Begin Adventure Button - moved to bottom */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: isReady ? 1 : 0, scale: isReady ? 1 : 0.9 }}
+            transition={{ duration: 0.5, delay: 0.5 }}
+            className="w-full flex justify-center mt-4 flex-shrink-0"
           >
-            <motion.span 
-              animate={{ x: hoverButton ? 5 : 0 }}
-              transition={{ type: "spring", stiffness: 400, damping: 10 }}
+            <motion.button
+              whileHover={{ scale: 1.05, boxShadow: "0 10px 25px -5px rgba(66, 71, 200, 0.4)" }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleBeginAdventure}
+              className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold text-lg rounded-xl shadow-lg"
             >
               Begin Your Adventure
-            </motion.span>
-            <motion.span 
-              animate={{ 
-                x: hoverButton ? 5 : 0,
-                scale: hoverButton ? 1.2 : 1
-              }}
-              transition={{ type: "spring", stiffness: 400, damping: 10 }}
-            >
-              →
-            </motion.span>
-          </motion.button>
-        </motion.div>
+            </motion.button>
+          </motion.div>
+        </div>
       </div>
     </SlideWrapper>
   );
