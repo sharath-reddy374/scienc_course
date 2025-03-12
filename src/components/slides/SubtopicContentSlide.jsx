@@ -4,7 +4,25 @@ import SlideWrapper from '../common/SlideWrapper';
 import LoadingSpinner from '../LoadingSpinner';
 import DatabaseService from '../../services/databaseService';
 
-
+// Define all utility functions outside the component to prevent circular dependencies
+function hasValidContent (content, sectionType) {
+  if (!content || !content[sectionType]) {
+    return false;
+  }
+  
+  const sectionContent = content[sectionType];
+  
+  // Check based on content type
+  if (typeof sectionContent === 'string') {
+    return sectionContent.trim().length > 0;
+  } else if (Array.isArray(sectionContent)) {
+    return sectionContent.length > 0;
+  } else if (typeof sectionContent === 'object' && sectionContent !== null) {
+    return Object.keys(sectionContent).length > 0;
+  }
+  
+  return false;
+};
 
 const SubtopicContentSlide = React.memo(({
   courseData,
@@ -19,19 +37,23 @@ const SubtopicContentSlide = React.memo(({
   isRefreshing,
   courseId
 }) => {
-  // State for section navigation
-  const [currentSection, setCurrentSection] = useState(0); // 0: Overview, 1: Key Points, 2: Examples, 3: Practice Exercises, 4: Matching Exercises
+  // Constants and utilities
+  const __DEV__ = process.env.NODE_ENV !== 'production';
   
-  // Track content fetch attempts to avoid repeated requests
-  const contentFetchAttemptedRef = useRef({
-    overview: false,
-    keyPoints: false,
-    examples: false,
-    exercises: false,
-    matchingExercises: false
-  });
+  // Map section indices to their data properties
+  const sectionToDataMap = {
+    0: 'overview',
+    1: 'keyPoints',
+    2: 'examples',
+    3: 'exercises',
+    4: 'matchingExercises'
+  };
   
-  // Section loading states
+  // Define the sections in order
+  const sections = ['Overview', 'Key Points', 'Examples', 'Practice Exercises', 'Matching Exercises'];
+  
+  // State management
+  const [currentSection, setCurrentSection] = useState(0);
   const [isLoadingSectionContent, setIsLoadingSectionContent] = useState({
     overview: false,
     keyPoints: false,
@@ -43,139 +65,120 @@ const SubtopicContentSlide = React.memo(({
   // Interactive exercise states
   const [userAnswers, setUserAnswers] = useState({});
   const [submittedQuestions, setSubmittedQuestions] = useState({});
-
-  // API call tracking
-  const apiCallTimeoutsRef = useRef({});
-  const apiCallInProgressRef = useRef({});
-  
-  // Matching exercise states
   const [matchingAnswers, setMatchingAnswers] = useState({});
   const [submittedMatchingExercises, setSubmittedMatchingExercises] = useState({});
   const [selectedLeftItem, setSelectedLeftItem] = useState(null);
-
-  // Define the sections in order
-  const sections = ['Overview', 'Key Points', 'Examples', 'Practice Exercises', 'Matching Exercises'];
+  
+  // Refs for tracking state between renders
+  const isMountedRef = useRef(true);
+  const onRefreshContentRef = useRef(onRefreshContent);
+  const topicIdentifierRef = useRef(null);
+  const contentFetchAttemptedRef = useRef({
+    overview: false,
+    keyPoints: false,
+    examples: false,
+    exercises: false,
+    matchingExercises: false
+  });
   const contentLoadedRef = useRef({});
   const fetchingRef = useRef(false);
-
-  const __DEV__ = process.env.NODE_ENV !== 'production';
+  const apiCallTimeoutsRef = useRef({});
+  const apiCallInProgressRef = useRef({});
   const hasRenderedRef = useRef(false);
-  
-  // Map section indices to their data properties
-  const sectionToDataMap = {
-    0: 'overview',
-    1: 'keyPoints',
-    2: 'examples',
-    3: 'exercises',
-    4: 'matchingExercises'
-  };
 
-  const isMountedRef = useRef(true);
-  
-
-
-  useEffect(() => {
-    console.log("SubtopicContentSlide received courseId:", courseId);
-  }, [courseId]);
-
-
-  // Run once when component mounts/unmounts
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  // Create a stable reference for onRefreshContent
-  const onRefreshContentRef = useRef(onRefreshContent);
+  // Update refs when props change
   useEffect(() => {
     onRefreshContentRef.current = onRefreshContent;
   }, [onRefreshContent]);
-
-  // Topic identifier for tracking topic changes
-  const topicIdentifierRef = useRef(null);
-
-
-
-
-// Add this in a component like SubtopicContentSlide.jsx
-useEffect(() => {
+  
+  // Lifecycle hooks
+  useEffect(() => {
+    isMountedRef.current = true;
+    console.log("SubtopicContentSlide received courseId:", courseId);
+    
+    return () => {
+      isMountedRef.current = false;
+      // Clean up all pending timeouts
+      Object.values(apiCallTimeoutsRef.current).forEach(timeout => {
+        clearTimeout(timeout);
+      });
+      apiCallTimeoutsRef.current = {};
+      apiCallInProgressRef.current = {};
+      fetchingRef.current = false;
+    };
+  }, [courseId]);
+  
   // Test database connectivity
-  const testDatabase = async () => {
-    if (courseId) {
-      console.log("Testing database write operation with courseId:", courseId);
-      try {
-        // Try to write a simple test object
-        const result = await DatabaseService.storeSubtopicSection(
-          courseId,
-          0, // quest index
-          0, // subtopic index
-          "test",
-          { testData: "This is a test at " + new Date().toISOString() }
-        );
-        console.log("Database write test result:", result);
-      } catch (error) {
-        console.error("Database write test failed:", error);
-      }
-    } else {
-      console.warn("No courseId available for database operations");
-    }
-  };
-  
-  testDatabase();
-}, [courseId]);
-
-
-//initial database check on mount - MODIFIED for course-specific content
-useEffect(() => {
-  if (questIndex === null || subtopicIndex === null || !courseId) return;
-  
-  // Check if we already have content in the database for THIS SPECIFIC COURSE
-  const checkDatabase = async () => {
-    try {
-      // This will only get content for the specific courseId
-      const dbContent = await DatabaseService.getSubtopicContent(courseId, questIndex, subtopicIndex);
-      
-      if (dbContent) {
-        console.log(`Found subtopic content in database for course ${courseId}:`, dbContent);
-        
-        // Mark all sections that exist in database as loaded
-        Object.keys(dbContent).forEach(section => {
-          if (Object.values(sectionToDataMap).includes(section) && dbContent[section]) {
-            const sectionKey = `${questIndex}-${subtopicIndex}-${section}`;
-            contentLoadedRef.current[sectionKey] = true;
-            console.log(`Marked ${section} as loaded from database for course ${courseId}`);
-          }
-        });
-        
-        // If this is a first load and we have database content,
-        // update the parent component's state
-        if (onRefreshContentRef.current && !subtopicContent) {
-          onRefreshContentRef.current({
-            questIndex,
-            subtopicIndex,
-            sectionType: 'all', // Special case to indicate all sections
-            fromDatabase: true,
-            databaseContent: dbContent
-          });
+  useEffect(() => {
+    const testDatabase = async () => {
+      if (courseId) {
+        console.log("Testing database write operation with courseId:", courseId);
+        try {
+          // Try to write a simple test object
+          const result = await DatabaseService.storeSubtopicSection(
+            courseId,
+            0, // quest index
+            0, // subtopic index
+            "test",
+            { testData: "This is a test at " + new Date().toISOString() }
+          );
+          console.log("Database write test result:", result);
+        } catch (error) {
+          console.error("Database write test failed:", error);
         }
       } else {
-        console.log(`No content found in database for course ${courseId}, will generate fresh content`);
+        console.warn("No courseId available for database operations");
       }
-    } catch (err) {
-      console.error(`Error checking database for content for course ${courseId}:`, err);
-    }
-  };
+    };
+    
+    testDatabase();
+  }, [courseId]);
   
-  // Only run this once on mount
-  checkDatabase();
-}, [questIndex, subtopicIndex, courseId, subtopicContent, sectionToDataMap]);
-
-
-
-
-
+  // Initial database check on mount - MODIFIED for course-specific content
+  useEffect(() => {
+    if (questIndex === null || subtopicIndex === null || !courseId) return;
+    
+    // Check if we already have content in the database for THIS SPECIFIC COURSE
+    const checkDatabase = async () => {
+      try {
+        // This will only get content for the specific courseId
+        const dbContent = await DatabaseService.getSubtopicContent(courseId, questIndex, subtopicIndex);
+        
+        if (dbContent) {
+          console.log(`Found subtopic content in database for course ${courseId}:`, dbContent);
+          
+          // Mark all sections that exist in database as loaded
+          Object.keys(dbContent).forEach(section => {
+            if (Object.values(sectionToDataMap).includes(section) && dbContent[section]) {
+              const sectionKey = `${questIndex}-${subtopicIndex}-${section}`;
+              contentLoadedRef.current[sectionKey] = true;
+              console.log(`Marked ${section} as loaded from database for course ${courseId}`);
+            }
+          });
+          
+          // If this is a first load and we have database content,
+          // update the parent component's state
+          if (onRefreshContentRef.current && !subtopicContent) {
+            onRefreshContentRef.current({
+              questIndex,
+              subtopicIndex,
+              sectionType: 'all', // Special case to indicate all sections
+              fromDatabase: true,
+              databaseContent: dbContent
+            });
+          }
+        } else {
+          console.log(`No content found in database for course ${courseId}, will generate fresh content`);
+        }
+      } catch (err) {
+        console.error(`Error checking database for content for course ${courseId}:`, err);
+      }
+    };
+    
+    // Only run this once on mount
+    checkDatabase();
+  }, [questIndex, subtopicIndex, courseId, subtopicContent, sectionToDataMap]);
+  
   // Mark existing content as loaded on initial render
   useEffect(() => {
     if (!subtopicContent || questIndex === null || subtopicIndex === null) {
@@ -196,107 +199,8 @@ useEffect(() => {
         }
       }
     });
-  }, [subtopicContent, questIndex, subtopicIndex]);
-
-  // Function to safely call the API with debouncing - IMPROVED
-  const debouncedApiCall = useCallback((params) => {
-    const { questIndex, subtopicIndex, sectionType, forceRefresh } = params;
-    if (questIndex === null || subtopicIndex === null) return Promise.resolve();
-    
-    const callId = `${questIndex}-${subtopicIndex}-${sectionType}`;
-    
-    // Clear any existing timeout for this call
-    if (apiCallTimeoutsRef.current[callId]) {
-      clearTimeout(apiCallTimeoutsRef.current[callId]);
-      delete apiCallTimeoutsRef.current[callId];
-    }
-    
-    // If this call is already in progress and not forced, skip
-    if (apiCallInProgressRef.current[callId] && !forceRefresh) {
-      if (__DEV__) console.log(`API call ${callId} already in progress, skipping duplicate`);
-      return Promise.resolve();
-    }
-    
-    // Set loading state only for the current section to minimize UI updates
-    if (sectionType === sectionToDataMap[currentSection]) {
-      setIsLoadingSectionContent(prev => ({
-        ...prev,
-        [sectionType]: true
-      }));
-    }
-    
-    // Return a new promise that will be resolved when the API call completes
-    return new Promise((resolve, reject) => {
-      // Schedule the actual API call with a small delay to prevent rapid consecutive calls
-      apiCallTimeoutsRef.current[callId] = setTimeout(() => {
-        // Mark this call as in progress
-        apiCallInProgressRef.current[callId] = true;
-        fetchingRef.current = true;
-        
-        // Make the actual API call
-        onRefreshContentRef.current(params)
-          .then(result => {
-            // Mark the section as loaded on success
-            if (isMountedRef.current) {
-              const sectionKey = `${questIndex}-${subtopicIndex}-${sectionType}`;
-              contentLoadedRef.current[sectionKey] = true;
-              
-              // Save the result to database if we have a courseId
-              if (courseId && result && result[sectionType]) {
-                DatabaseService.storeSubtopicSection(
-                  courseId,
-                  questIndex,
-                  subtopicIndex,
-                  sectionType,
-                  result[sectionType]
-                ).catch(err => {
-                  console.error(`Error saving ${sectionType} to database:`, err);
-                });
-              }
-              
-              resolve(result);
-            }
-          })
-          .catch(error => {
-            console.error(`Error in API call ${callId}:`, error);
-            // Reset fetch attempt flag on failure
-            if (isMountedRef.current) {
-              contentFetchAttemptedRef.current[sectionType] = false;
-              reject(error);
-            }
-          })
-          .finally(() => {
-            // Clean up regardless of outcome
-            if (isMountedRef.current) {
-              delete apiCallInProgressRef.current[callId];
-              fetchingRef.current = false;
-              
-              // Only update loading state for current section to avoid unnecessary re-renders
-              if (sectionType === sectionToDataMap[currentSection]) {
-                setIsLoadingSectionContent(prev => ({
-                  ...prev,
-                  [sectionType]: false
-                }));
-              }
-            }
-          });
-      }, 100); // 100ms debounce delay
-    });
-  }, [currentSection, courseId]);
-
-  // Clean up timeouts on unmount
-  useEffect(() => {
-    return () => {
-      // Clear all pending timeouts
-      Object.values(apiCallTimeoutsRef.current).forEach(timeout => {
-        clearTimeout(timeout);
-      });
-      apiCallTimeoutsRef.current = {};
-      apiCallInProgressRef.current = {};
-      fetchingRef.current = false;
-    };
-  }, []);
-
+  }, [subtopicContent, questIndex, subtopicIndex, sectionToDataMap]);
+  
   // Handle topic change
   useEffect(() => {
     // Skip if questIndex or subtopicIndex is null
@@ -346,166 +250,245 @@ useEffect(() => {
       contentLoadedRef.current[`${questIndex}-${subtopicIndex}-overview`] = true;
     }
   }, [questIndex, subtopicIndex]);
-
-  // Add this effect for cleanup
-  useEffect(() => {
-    return () => {
-      // Clear fetching flags when component unmounts
-      fetchingRef.current = false;
-      contentFetchAttemptedRef.current = {
-        overview: false,
-        keyPoints: false,
-        examples: false,
-        exercises: false,
-        matchingExercises: false
-      };
-      contentLoadedRef.current = {};
-    };
-  }, []);
-
-
-// Function to preload all subtopic sections in the background
-const preloadAllSectionContent = useCallback(() => {
-  if (questIndex === null || subtopicIndex === null || !onRefreshContentRef.current || fetchingRef.current) {
-    return;
-  }
   
-  if (__DEV__) console.log("Preloading all section content in the background");
-  
-  // Define all sections we want to load 
-  const sectionsToLoad = ['overview', 'keyPoints', 'examples', 'exercises', 'matchingExercises'];
-  
-  // First check if we have complete data in the database
-  if (courseId) {
-    (async () => {
-      try {
-        // Check for complete subtopic content in database
-        const dbContent = await DatabaseService.getSubtopicContent(courseId, questIndex, subtopicIndex);
+  // Function to safely call the API with debouncing - IMPROVED
+  const debouncedApiCall = useCallback((params) => {
+    const { questIndex, subtopicIndex, sectionType, forceRefresh, skipUIRefresh = false } = params;
+    if (questIndex === null || subtopicIndex === null) return Promise.resolve();
+    
+    const callId = `${questIndex}-${subtopicIndex}-${sectionType}`;
+    
+    // Clear any existing timeout for this call
+    if (apiCallTimeoutsRef.current[callId]) {
+      clearTimeout(apiCallTimeoutsRef.current[callId]);
+      delete apiCallTimeoutsRef.current[callId];
+    }
+    
+    // If this call is already in progress and not forced, skip
+    if (apiCallInProgressRef.current[callId] && !forceRefresh) {
+      if (__DEV__) console.log(`API call ${callId} already in progress, skipping duplicate`);
+      return Promise.resolve();
+    }
+    
+    // Set loading state only for the current section and only if not skipUIRefresh
+    if (!skipUIRefresh && sectionType === sectionToDataMap[currentSection]) {
+      setIsLoadingSectionContent(prev => ({
+        ...prev,
+        [sectionType]: true
+      }));
+    }
+    
+    // Return a new promise that will be resolved when the API call completes
+    return new Promise((resolve, reject) => {
+      // Schedule the actual API call with a small delay to prevent rapid consecutive calls
+      apiCallTimeoutsRef.current[callId] = setTimeout(() => {
+        // Mark this call as in progress
+        apiCallInProgressRef.current[callId] = true;
+        fetchingRef.current = true;
         
-        if (dbContent) {
-          console.log("Found complete content in database:", dbContent);
-          
-          // Mark sections as loaded if they exist in database
-          Object.keys(dbContent).forEach(section => {
-            if (sectionsToLoad.includes(section) && dbContent[section]) {
-              const sectionKey = `${questIndex}-${subtopicIndex}-${section}`;
+        // Make the actual API call with skipRefresh parameter to prevent UI updates
+        onRefreshContentRef.current({
+          ...params,
+          skipRefresh: skipUIRefresh
+        })
+          .then(result => {
+            // Mark the section as loaded on success
+            if (isMountedRef.current) {
+              const sectionKey = `${questIndex}-${subtopicIndex}-${sectionType}`;
               contentLoadedRef.current[sectionKey] = true;
-              console.log(`Marked ${section} as loaded from database`);
+              
+              // Save the result to database if we have a courseId
+              if (courseId && result && result[sectionType]) {
+                DatabaseService.storeSubtopicSection(
+                  courseId,
+                  questIndex,
+                  subtopicIndex,
+                  sectionType,
+                  result[sectionType]
+                ).catch(err => {
+                  console.error(`Error saving ${sectionType} to database:`, err);
+                });
+              }
+              
+              resolve(result);
+            }
+          })
+          .catch(error => {
+            console.error(`Error in API call ${callId}:`, error);
+            // Reset fetch attempt flag on failure
+            if (isMountedRef.current) {
+              contentFetchAttemptedRef.current[sectionType] = false;
+              reject(error);
+            }
+          })
+          .finally(() => {
+            // Clean up regardless of outcome
+            if (isMountedRef.current) {
+              delete apiCallInProgressRef.current[callId];
+              fetchingRef.current = false;
+              
+              // Only update loading state for current section and only if not skipUIRefresh
+              if (!skipUIRefresh && sectionType === sectionToDataMap[currentSection]) {
+                setIsLoadingSectionContent(prev => ({
+                  ...prev,
+                  [sectionType]: false
+                }));
+              }
             }
           });
+      }, 100); // 100ms debounce delay
+    });
+  }, [currentSection, courseId, sectionToDataMap]);
+  
+  // Function to preload all subtopic sections in the background
+  const preloadAllSectionContent = useCallback(() => {
+    if (questIndex === null || subtopicIndex === null || !onRefreshContentRef.current || fetchingRef.current) {
+      return;
+    }
+    
+    if (__DEV__) console.log("Preloading all section content in the background");
+    
+    // Define all sections we want to load 
+    const sectionsToLoad = ['overview', 'keyPoints', 'examples', 'exercises', 'matchingExercises'];
+    
+    // First check if we have complete data in the database
+    if (courseId) {
+      (async () => {
+        try {
+          // Check for complete subtopic content in database
+          const dbContent = await DatabaseService.getSubtopicContent(courseId, questIndex, subtopicIndex);
           
-          // Update parent state with the complete database content - IMPORTANT
-          if (onRefreshContentRef.current) {
-            onRefreshContentRef.current({
-              questIndex,
-              subtopicIndex, 
-              sectionType: 'all',
-              fromDatabase: true,
-              databaseContent: dbContent
+          if (dbContent) {
+            console.log("Found complete content in database:", dbContent);
+            
+            // Mark sections as loaded if they exist in database
+            Object.keys(dbContent).forEach(section => {
+              if (sectionsToLoad.includes(section) && dbContent[section]) {
+                const sectionKey = `${questIndex}-${subtopicIndex}-${section}`;
+                contentLoadedRef.current[sectionKey] = true;
+                console.log(`Marked ${section} as loaded from database`);
+              }
             });
-          }
-          
-          // Filter out sections that already exist in database
-          const remainingSections = sectionsToLoad.filter(section => 
-            !dbContent[section] || 
-            (Array.isArray(dbContent[section]) && dbContent[section].length === 0)
-          );
-          
-          // If everything is loaded, we're done
-          if (remainingSections.length === 0) {
-            console.log("All sections already loaded from database");
-            return;
-          }
-          
-          // Load remaining sections one by one with delay
-          remainingSections.forEach((sectionType, index) => {
-            setTimeout(() => {
-              if (!isMountedRef.current) return;
-              console.log(`Background loading ${sectionType}`);
-              
-              // Mark as attempted to prevent duplicate fetches
-              contentFetchAttemptedRef.current[sectionType] = true;
-              
+            
+            // Update parent state with the complete database content without UI refresh
+            if (onRefreshContentRef.current) {
               onRefreshContentRef.current({
                 questIndex,
-                subtopicIndex,
-                sectionType,
-                forceRefresh: false
-              }).catch(err => console.error(`Error preloading ${sectionType}:`, err));
-            }, index * 500);
-          });
-        } else {
-          // No content in database, load all sections normally
-          loadSectionsSequentially(sectionsToLoad);
+                subtopicIndex, 
+                sectionType: 'all',
+                fromDatabase: true,
+                databaseContent: dbContent,
+                skipRefresh: true // Don't trigger UI refresh for database loaded content
+              });
+            }
+            
+            // Filter out sections that already exist in database
+            const remainingSections = sectionsToLoad.filter(section => 
+              !dbContent[section] || 
+              (Array.isArray(dbContent[section]) && dbContent[section].length === 0)
+            );
+            
+            // If everything is loaded, we're done
+            if (remainingSections.length === 0) {
+              console.log("All sections already loaded from database");
+              return;
+            }
+            
+            // Load remaining sections one by one with delay
+            remainingSections.forEach((sectionType, index) => {
+              setTimeout(() => {
+                if (!isMountedRef.current) return;
+                console.log(`Background loading ${sectionType}`);
+                
+                // Mark as attempted to prevent duplicate fetches
+                contentFetchAttemptedRef.current[sectionType] = true;
+                
+                debouncedApiCall({
+                  questIndex,
+                  subtopicIndex,
+                  sectionType,
+                  forceRefresh: false,
+                  skipUIRefresh: true // Don't update UI for background loads
+                }).catch(err => console.error(`Error preloading ${sectionType}:`, err));
+              }, index * 500);
+            });
+          } else {
+            if (!dbContent) {
+              loadSectionsSequentially(sectionsToLoad, true);
+            }
+          }
+        } catch (err) {
+          console.error("Error checking database for content:", err);
+          // Fall back to normal loading
+          loadSectionsSequentially(sectionsToLoad, true); // Pass true to skipUIRefresh
         }
-      } catch (err) {
-        console.error("Error checking database for content:", err);
-        // Fall back to normal loading
-        loadSectionsSequentially(sectionsToLoad);
-      }
-    })();
-  } else {
-    // No courseId, load normally
-    loadSectionsSequentially(sectionsToLoad);
-  }
-}, [questIndex, subtopicIndex, courseId]);
-
-
-const loadSectionsSequentially = (sectionsToLoad) => {
-  // Only show loading indicator for current section
-  const currentSectionType = sectionToDataMap[currentSection];
+      })();
+    } else {
+      // No courseId, load normally
+      loadSectionsSequentially(sectionsToLoad, true); // Pass true to skipUIRefresh
+    }
+  }, [questIndex, subtopicIndex, courseId, debouncedApiCall]);
   
-  // First load current section (for immediate visibility)
-  if (sectionsToLoad.includes(currentSectionType) && 
-      !contentLoadedRef.current[`${questIndex}-${subtopicIndex}-${currentSectionType}`]) {
-    setIsLoadingSectionContent(prev => ({
-      ...prev,
-      [currentSectionType]: true
-    }));
+  // Helper function to load sections in sequence
+  const loadSectionsSequentially = useCallback((sectionsToLoad, skipUIRefresh = false) => {
+    // Only show loading indicator for current section if not skipping UI refresh
+    const currentSectionType = sectionToDataMap[currentSection];
     
-    onRefreshContentRef.current({
-      questIndex,
-      subtopicIndex,
-      sectionType: currentSectionType,
-      forceRefresh: false
-    }).finally(() => {
-      if (isMountedRef.current) {
+    // First load current section (for immediate visibility) - don't skip UI refresh for this
+    if (sectionsToLoad.includes(currentSectionType) && 
+        !contentLoadedRef.current[`${questIndex}-${subtopicIndex}-${currentSectionType}`]) {
+      
+      if (!skipUIRefresh) {
         setIsLoadingSectionContent(prev => ({
           ...prev,
-          [currentSectionType]: false
+          [currentSectionType]: true
         }));
-        contentLoadedRef.current[`${questIndex}-${subtopicIndex}-${currentSectionType}`] = true;
       }
-    });
-  }
-  
-  // Then load other sections in background without showing loading state
-  const otherSections = sectionsToLoad.filter(section => 
-    section !== currentSectionType && 
-    !contentLoadedRef.current[`${questIndex}-${subtopicIndex}-${section}`]
-  );
-  
-  otherSections.forEach((sectionType, index) => {
-    setTimeout(() => {
-      if (!isMountedRef.current) return;
       
-      // Don't show loading state for background sections
-      contentFetchAttemptedRef.current[sectionType] = true;
-      
-      onRefreshContentRef.current({
+      debouncedApiCall({
         questIndex,
         subtopicIndex,
-        sectionType,
-        forceRefresh: false
-      }).then(() => {
-        if (isMountedRef.current) {
-          contentLoadedRef.current[`${questIndex}-${subtopicIndex}-${sectionType}`] = true;
+        sectionType: currentSectionType,
+        forceRefresh: false,
+        skipUIRefresh: skipUIRefresh
+      }).finally(() => {
+        if (isMountedRef.current && !skipUIRefresh) {
+          setIsLoadingSectionContent(prev => ({
+            ...prev,
+            [currentSectionType]: false
+          }));
         }
-      }).catch(err => console.error(`Error loading ${sectionType}:`, err));
-    }, (index + 1) * 500);
-  });
-};
-
+        contentLoadedRef.current[`${questIndex}-${subtopicIndex}-${currentSectionType}`] = true;
+      });
+    }
+    
+    // Then load other sections in background without showing loading state
+    const otherSections = sectionsToLoad.filter(section => 
+      section !== currentSectionType && 
+      !contentLoadedRef.current[`${questIndex}-${subtopicIndex}-${section}`]
+    );
+    
+    otherSections.forEach((sectionType, index) => {
+      setTimeout(() => {
+        if (!isMountedRef.current) return;
+        
+        // Don't show loading state for background sections
+        contentFetchAttemptedRef.current[sectionType] = true;
+        
+        debouncedApiCall({
+          questIndex,
+          subtopicIndex,
+          sectionType,
+          forceRefresh: false,
+          skipUIRefresh: true // Always skip UI refresh for background loads
+        }).then(() => {
+          if (isMountedRef.current) {
+            contentLoadedRef.current[`${questIndex}-${subtopicIndex}-${sectionType}`] = true;
+          }
+        }).catch(err => console.error(`Error loading ${sectionType}:`, err));
+      }, (index + 1) * 500);
+    });
+  }, [currentSection, questIndex, subtopicIndex, sectionToDataMap, debouncedApiCall]);
   
   // Loading effect for current section content
   useEffect(() => {
@@ -531,11 +514,64 @@ const loadSectionsSequentially = (sectionsToLoad) => {
       if (timer) clearTimeout(timer);
     };
   }, [questIndex, subtopicIndex, preloadAllSectionContent]);
-
-
-
-
-  // Update loading state when content becomes available - OPTIMIZED
+  
+  // Effect that runs when current section changes to load content if needed
+  useEffect(() => {
+    // Skip if invalid indices
+    if (questIndex === null || subtopicIndex === null) {
+      return;
+    }
+    
+    // Get the current section type
+    const currentSectionType = sectionToDataMap[currentSection];
+    
+    // Check if we already have content for this section
+    const sectionKey = `${questIndex}-${subtopicIndex}-${currentSectionType}`;
+    const hasContent = 
+      (subtopicContent && hasValidContent(subtopicContent, currentSectionType)) || 
+      contentLoadedRef.current[sectionKey];
+    
+    // If we don't have content and we haven't tried to fetch it yet, load it
+    if (!hasContent && !contentFetchAttemptedRef.current[currentSectionType] && !isLoadingSectionContent[currentSectionType]) {
+      console.log(`Loading content for ${currentSectionType}`);
+      
+      // Mark as attempted to prevent duplicate fetches
+      contentFetchAttemptedRef.current[currentSectionType] = true;
+      
+      // Show loading state for current section
+      setIsLoadingSectionContent(prev => ({
+        ...prev, 
+        [currentSectionType]: true
+      }));
+      
+      // Fetch content for current section with UI updates
+      debouncedApiCall({
+        questIndex,
+        subtopicIndex,
+        sectionType: currentSectionType,
+        forceRefresh: false,
+        skipUIRefresh: false
+      }).finally(() => {
+        if (isMountedRef.current) {
+          contentLoadedRef.current[sectionKey] = true;
+          setIsLoadingSectionContent(prev => ({
+            ...prev,
+            [currentSectionType]: false
+          }));
+        }
+      });
+    }
+  }, [
+    currentSection, 
+    questIndex, 
+    subtopicIndex, 
+    subtopicContent, 
+    sectionToDataMap, 
+    isLoadingSectionContent,
+    debouncedApiCall
+  ]);
+  
+  // Update loading state when content becomes available
   useEffect(() => {
     if (!subtopicContent) return;
     
@@ -556,25 +592,8 @@ const loadSectionsSequentially = (sectionsToLoad) => {
         return prev;
       });
     }
-  }, [subtopicContent, currentSection]);
-
-  // Trigger preloading with a small delay to avoid UI jank
-  useEffect(() => {
-    // Skip if invalid indices
-    if (questIndex === null || subtopicIndex === null) {
-      return;
-    }
-    
-    // Use a small delay to avoid causing render issues
-    const timer = setTimeout(() => {
-      if (isMountedRef.current) {
-        preloadAllSectionContent();
-      }
-    }, 500);
-    
-    return () => clearTimeout(timer);
-  }, [questIndex, subtopicIndex, preloadAllSectionContent]);
-
+  }, [subtopicContent, currentSection, sectionToDataMap]);
+  
   // Section navigation with improved loading logic
   const goToNextSection = useCallback(() => {
     if (currentSection < sections.length - 1) {
@@ -597,12 +616,13 @@ const loadSectionsSequentially = (sectionsToLoad) => {
         
         contentFetchAttemptedRef.current[nextSectionType] = true;
         
-        // Fetch content for next section
-        onRefreshContentRef.current({
+        // Fetch content for next section - don't skip UI for this
+        debouncedApiCall({
           questIndex,
           subtopicIndex,
           sectionType: nextSectionType,
-          forceRefresh: false
+          forceRefresh: false,
+          skipUIRefresh: false
         })
         .finally(() => {
           if (isMountedRef.current) {
@@ -625,8 +645,8 @@ const loadSectionsSequentially = (sectionsToLoad) => {
       setCurrentSection(0);
       onNext();
     }
-  }, [currentSection, questIndex, subtopicIndex, subtopicContent, onNext, sections.length]);
-
+  }, [currentSection, questIndex, subtopicIndex, subtopicContent, onNext, sections.length, sectionToDataMap, debouncedApiCall]);
+  
   // Go to previous section
   const goToPreviousSection = useCallback(() => {
     if (currentSection > 0) {
@@ -635,8 +655,8 @@ const loadSectionsSequentially = (sectionsToLoad) => {
       onReturnToQuest();
     }
   }, [currentSection, onReturnToQuest]);
-
-  // Force refresh current section content - OPTIMIZED
+  
+  // Force refresh current section content
   const handleForceRefreshCurrentSection = useCallback(() => {
     if (fetchingRef.current) {
       console.log("Refresh already in progress, skipping duplicate request");
@@ -687,8 +707,7 @@ const loadSectionsSequentially = (sectionsToLoad) => {
       }
     });
   }, [currentSection, questIndex, subtopicIndex, courseId, sectionToDataMap]);
-
-
+  
   // Interactive exercise handlers
   const handleSelectAnswer = useCallback((exerciseIdx, optionIdx) => {
     if (submittedQuestions[exerciseIdx]) return;
@@ -780,101 +799,99 @@ const loadSectionsSequentially = (sectionsToLoad) => {
             return (
               <div key={index} className="mb-4">
                 <h3 className="font-bold text-indigo-700 mb-2 pb-1 border-b border-indigo-100">{title}:</h3>
-                <div className="ml-0">
-                  {paragraphs.map((paragraph, pIdx) => (
-                    <p key={pIdx} className="text-gray-700 mb-2">{paragraph.trim()}</p>
-                  ))}
-                </div>
-              </div>
-            );
-          }
-          return <p key={index} className="text-gray-700">{trimmedSection}</p>;
-        })}
+<div className="ml-0">
+  {paragraphs.map((paragraph, pIdx) => (
+    <p key={pIdx} className="text-gray-700 mb-2">{paragraph.trim()}</p>
+  ))}
+</div>
+</div>
+);
+}
+return <p key={index} className="text-gray-700">{trimmedSection}</p>;
+})}
+</div>
+);
+}, []);
+
+// Render section refresh button
+const renderSectionRefreshButton = useCallback(() => {
+  return (
+    <button
+      onClick={handleForceRefreshCurrentSection}
+      className="ml-2 p-1 text-indigo-500 hover:bg-indigo-100 rounded-full"
+      title={`Regenerate ${sections[currentSection]}`}
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      </svg>
+    </button>
+  );
+}, [handleForceRefreshCurrentSection, currentSection, sections]);
+
+// RenderMatchingExercise component with memoization
+const RenderMatchingExercise = useCallback(({ 
+  exercise, 
+  idx, 
+  matchingAnswers,
+  submittedMatchingExercises,
+  handleSelectLeftItem,
+  handleSelectRightItem,
+  handleRemoveMatch,
+  handleSubmitMatching,
+  isMatchingComplete,
+  isMatchCorrect,
+  gradientColors
+}) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.1 }}
+      className="bg-gradient-to-br from-white to-gray-50 p-4 rounded-lg border border-gray-200 shadow-sm"
+    >
+      <h4 className="font-medium text-gray-800 mb-3 text-base border-b border-gray-100 pb-2 flex items-center">
+        <span className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center mr-3 shadow-sm text-sm">
+          Q{idx + 1}
+        </span>
+        {exercise?.instructions || "Match the items on the left with their definitions on the right."}
+      </h4>
+      <div className="mb-3 text-sm text-gray-500 italic">
+        Click to match items.
       </div>
-    );
-  }, []);
-
-  // Render section refresh button
-  const renderSectionRefreshButton = useCallback(() => {
-    return (
-      <button
-        onClick={handleForceRefreshCurrentSection}
-        className="ml-2 p-1 text-indigo-500 hover:bg-indigo-100 rounded-full"
-        title={`Regenerate ${sections[currentSection]}`}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-      </button>
-    );
-  }, [handleForceRefreshCurrentSection, currentSection, sections]);
-
-  // RenderMatchingExercise component with memoization
-  const RenderMatchingExercise = useCallback(({ 
-    exercise, 
-    idx, 
-    matchingAnswers,
-    submittedMatchingExercises,
-    handleSelectLeftItem,
-    handleSelectRightItem,
-    handleRemoveMatch,
-    handleSubmitMatching,
-    isMatchingComplete,
-    isMatchCorrect,
-    gradientColors
-  }) => {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="bg-gradient-to-br from-white to-gray-50 p-4 rounded-lg border border-gray-200 shadow-sm"
-      >
-        <h4 className="font-medium text-gray-800 mb-3 text-base border-b border-gray-100 pb-2 flex items-center">
-          <span className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center mr-3 shadow-sm text-sm">
-            Q{idx + 1}
-          </span>
-          {exercise?.instructions || "Match the items on the left with their definitions on the right."}
-        </h4>
-        <div className="mb-3 text-sm text-gray-500 italic">
-          Click to match items.
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div className="space-y-3">
-            <h5 className="text-sm font-medium text-indigo-600 mb-2">Items</h5>
-            {exercise?.leftItems?.map((item, leftIdx) => (
-              <div
-                key={leftIdx}
-                onClick={() => !submittedMatchingExercises[idx] && handleSelectLeftItem(idx, leftIdx)}
-                className={`p-3 rounded-lg border text-base cursor-pointer flex items-center ${
-                  submittedMatchingExercises[idx]
-                    ? isMatchCorrect(idx, leftIdx, matchingAnswers[idx]?.[leftIdx])
-                      ? 'bg-green-100 border-green-300 border'
-                      : 'bg-red-100 border-red-300 border'
-                    : selectedLeftItem?.exerciseIdx === idx && selectedLeftItem?.leftIdx === leftIdx
-                      ? 'bg-indigo-200 border-indigo-400 border shadow-md'
-                      : matchingAnswers[idx]?.[leftIdx] !== undefined
-                        ? 'bg-blue-100 border-blue-300 border'
-                        : 'bg-white border-indigo-200 border hover:bg-indigo-50 hover:border-indigo-300'
-                }`}
-              >
-                <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium mr-3 shadow-sm ${
-                  submittedMatchingExercises[idx]
-                    ? isMatchCorrect(idx, leftIdx, matchingAnswers[idx]?.[leftIdx])
-                      ? 'bg-green-500 text-white'
-                      : 'bg-red-500 text-white'
-                    : selectedLeftItem?.exerciseIdx === idx && selectedLeftItem?.leftIdx === leftIdx
-                      ? 'bg-indigo-600 text-white'
-                      : matchingAnswers[idx]?.[leftIdx] !== undefined
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-indigo-500 text-white'
-                }`}>
-                  {leftIdx + 1}
-                </div>
-                <span className="flex-1">{item || ""}</span>
-                {matchingAnswers[idx]?.[leftIdx] !== undefined && !submittedMatchingExercises[idx] && (
-// Continuing from where your code left off
-
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div className="space-y-3">
+          <h5 className="text-sm font-medium text-indigo-600 mb-2">Items</h5>
+          {exercise?.leftItems?.map((item, leftIdx) => (
+            <div
+              key={leftIdx}
+              onClick={() => !submittedMatchingExercises[idx] && handleSelectLeftItem(idx, leftIdx)}
+              className={`p-3 rounded-lg border text-base cursor-pointer flex items-center ${
+                submittedMatchingExercises[idx]
+                  ? isMatchCorrect(idx, leftIdx, matchingAnswers[idx]?.[leftIdx])
+                    ? 'bg-green-100 border-green-300 border'
+                    : 'bg-red-100 border-red-300 border'
+                  : selectedLeftItem?.exerciseIdx === idx && selectedLeftItem?.leftIdx === leftIdx
+                    ? 'bg-indigo-200 border-indigo-400 border shadow-md'
+                    : matchingAnswers[idx]?.[leftIdx] !== undefined
+                      ? 'bg-blue-100 border-blue-300 border'
+                      : 'bg-white border-indigo-200 border hover:bg-indigo-50 hover:border-indigo-300'
+              }`}
+            >
+              <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium mr-3 shadow-sm ${
+                submittedMatchingExercises[idx]
+                  ? isMatchCorrect(idx, leftIdx, matchingAnswers[idx]?.[leftIdx])
+                    ? 'bg-green-500 text-white'
+                    : 'bg-red-500 text-white'
+                  : selectedLeftItem?.exerciseIdx === idx && selectedLeftItem?.leftIdx === leftIdx
+                    ? 'bg-indigo-600 text-white'
+                    : matchingAnswers[idx]?.[leftIdx] !== undefined
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-indigo-500 text-white'
+              }`}>
+                {leftIdx + 1}
+              </div>
+              <span className="flex-1">{item || ""}</span>
+              {matchingAnswers[idx]?.[leftIdx] !== undefined && !submittedMatchingExercises[idx] && (
                 <div className="bg-blue-100 text-blue-800 text-sm font-semibold rounded-full h-6 w-6 flex items-center justify-center ml-2">
                   {String.fromCharCode(65 + matchingAnswers[idx][leftIdx])}
                 </div>
@@ -1005,458 +1022,438 @@ const loadSectionsSequentially = (sectionsToLoad) => {
   );
 }, [selectedLeftItem]);
 
-  // Helper function to check if content exists and is valid
-  const hasValidContent = useCallback((content, sectionType) => {
-    if (!content || !content[sectionType]) {
-      return false;
-    }
-    
-    const sectionContent = content[sectionType];
-    
-    // Check based on content type
-    if (typeof sectionContent === 'string') {
-      return sectionContent.trim().length > 0;
-    } else if (Array.isArray(sectionContent)) {
-      return sectionContent.length > 0;
-    } else if (typeof sectionContent === 'object' && sectionContent !== null) {
-      return Object.keys(sectionContent).length > 0;
-    }
-    
-    return false;
-  }, []);
+// Memoized renderSectionContent function
+const renderSectionContent = useCallback(() => {
+  const currentSectionType = sectionToDataMap[currentSection];
 
-  // Memoized renderSectionContent function
-  const renderSectionContent = useCallback(() => {
-    const currentSectionType = sectionToDataMap[currentSection];
+  // Check if we have content for the current section
+  const hasContent = subtopicContent && subtopicContent[currentSectionType];
   
-    // Check if we have content for the current section
-    const hasContent = subtopicContent && subtopicContent[currentSectionType];
-    
-    // If no content, show appropriate placeholder
-    if (!hasContent) {
-      return (
-        <div className="h-full flex flex-col items-center justify-center p-4">
-          <p className="text-gray-500 text-center">
-            Content is being loaded for this section. Please wait...
-          </p>
-        </div>
-      );
-    }
+  // If no content, show appropriate placeholder
+  if (!hasContent) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center p-4">
+        <p className="text-gray-500 text-center">
+          Content is being loaded for this section. Please wait...
+        </p>
+      </div>
+    );
+  }
 
-    // Define gradient colors based on quest index
-    const gradientColors = questIndex % 2 === 0 
-      ? 'from-blue-500 to-indigo-600' 
-      : 'from-indigo-500 to-purple-600';
-
-    switch (currentSection) {
-      case 0: // Overview
-        return (
-          <div className="h-full flex flex-col">
-            <h2 className="text-lg font-bold text-gray-800 mb-3 pb-1 border-b border-indigo-100 flex items-center justify-between">
-              <div className="flex items-center">
-                <span className={`w-5 h-5 flex items-center justify-center rounded-full bg-gradient-to-r ${gradientColors} text-white mr-2 shadow-md text-xs`}>
-                  {currentSection + 1}
-                </span>
-                {sections[currentSection]}
-              </div>
-              {renderSectionRefreshButton()}
-            </h2>
-            <div className="prose prose-sm prose-indigo max-w-none p-4 bg-gradient-to-br from-indigo-50/50 to-blue-50/50 rounded-lg shadow-sm border border-blue-100 flex-1 overflow-auto">
-              {formatOverview(subtopicContent?.overview) || 
-                <p className="text-base leading-relaxed">No overview content available.</p>
-              }
-            </div>
-          </div>
-        );
-        
-      case 1: // Key Points
-        return (
-          <div className="h-full flex flex-col">
-            <h2 className="text-lg font-bold text-gray-800 mb-2 pb-1 border-b border-indigo-100 flex items-center justify-between">
-              <div className="flex items-center">
-                <span className={`w-5 h-5 flex items-center justify-center rounded-full bg-gradient-to-r ${gradientColors} text-white mr-2 shadow-md text-xs`}>
-                  {currentSection + 1}
-                </span>
-                {sections[currentSection]}
-              </div>
-              {renderSectionRefreshButton()}
-            </h2>
-            <div className="space-y-2 overflow-auto flex-1 pr-1">
-              {subtopicContent?.keyPoints?.map((point, idx) => (
-                <motion.div 
-                  key={idx} 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  className="bg-gradient-to-r from-indigo-50 to-blue-50 p-3 rounded-lg border-l-4 border-indigo-500 shadow-sm transform hover:scale-105 transition-all hover:shadow-md"
-                >
-                  <h4 className="font-semibold text-indigo-800 mb-1 text-sm flex items-center">
-                    <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center mr-2 shadow-sm text-xs">
-                      {idx + 1}
-                    </span>
-                    {point?.title || `Key Point ${idx+1}`}
-                  </h4>
-                  <p className="text-gray-700 pl-7 text-sm">{point?.description || ""}</p>
-                </motion.div>
-              )) || <p className="text-gray-500">No key points available.</p>}
-            </div>
-          </div>
-        );
-        
-      case 2: // Examples
-        return (
-          <div className="h-full flex flex-col">
-            <h2 className="text-lg font-bold text-gray-800 mb-2 pb-1 border-b border-indigo-100 flex items-center justify-between">
-              <div className="flex items-center">
-                <span className={`w-5 h-5 flex items-center justify-center rounded-full bg-gradient-to-r ${gradientColors} text-white mr-2 shadow-md text-xs`}>
-                  {currentSection + 1}
-                </span>
-                {sections[currentSection]}
-              </div>
-              {renderSectionRefreshButton()}
-            </h2>
-            <div className="space-y-2 overflow-auto flex-1 pr-1">
-              {Array.isArray(subtopicContent?.examples) ? (
-                subtopicContent.examples.map((example, idx) => (
-                  <motion.div 
-                    key={idx}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.05 }}
-                    className="p-3 border border-blue-100 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50/50 shadow-sm hover:shadow-md transition-all transform hover:scale-105"
-                  >
-                    {typeof example === 'object' && example !== null ? (
-                      <div className="space-y-2">
-                        {example.title && (
-                          <h4 className="font-semibold text-indigo-800 text-sm flex items-center">
-                            <div className="bg-blue-600 text-white rounded-full w-5 h-5 flex items-center justify-center font-bold mr-2 flex-shrink-0 mt-0.5 shadow-sm text-xs">
-                              {idx + 1}
-                            </div>
-                            {example.title}
-                          </h4>
-                        )}
-                        {example.scenario && (
-                          <p className="text-gray-700 text-sm pl-7">{example.scenario}</p>
-                        )}
-                        {example.analysis && (
-                          <div className="bg-blue-50 p-2 rounded-md mt-2 text-sm text-gray-600 pl-7">
-                            <span className="font-medium text-indigo-600">Analysis: </span>
-                            {example.analysis}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex items-start">
-                        <div className="bg-blue-600 text-white rounded-full w-5 h-5 flex items-center justify-center font-bold mr-2 flex-shrink-0 mt-0.5 shadow-sm text-xs">
-                          {idx + 1}
-                        </div>
-                        <p className="text-gray-700 text-sm">{example || ""}</p>
-                      </div>
-                    )}
-                  </motion.div>
-                ))
-              ) : (
-                <p className="text-gray-500">No examples available.</p>
-              )}
-            </div>
-          </div>
-        );
-        
-      case 3: // Practice Exercises
-        return (
-          <div className="h-full flex flex-col">
-            <h2 className="text-lg font-bold text-gray-800 mb-2 pb-1 border-b border-indigo-100 flex items-center justify-between">
-              <div className="flex items-center">
-                <span className={`w-5 h-5 flex items-center justify-center rounded-full bg-gradient-to-r ${gradientColors} text-white mr-2 shadow-md text-xs`}>
-                  {currentSection + 1}
-                </span>
-                {sections[currentSection]}
-              </div>
-              {renderSectionRefreshButton()}
-            </h2>
-            <div className="overflow-auto flex-1 pr-1">
-              {subtopicContent?.exercises && subtopicContent.exercises.length > 0 ? (
-                <div className="space-y-3">
-                  {subtopicContent.exercises
-                    .filter(exercise => exercise.type !== 'matching')
-                    .map((exercise, idx) => (
-                      <motion.div
-                        key={idx}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.1 }}
-                        className="bg-gradient-to-br from-white to-gray-50 p-3 rounded-lg border border-gray-200 shadow-sm"
-                      >
-                        <h4 className="font-medium text-gray-800 mb-2 text-sm border-b border-gray-100 pb-1 flex items-center">
-                          <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center mr-2 shadow-sm text-xs">
-                            Q{idx + 1}
-                          </span>
-                          {exercise?.question || `Exercise ${idx+1}`}
-                        </h4>
-                        <div className="space-y-1 mb-2">
-                          {exercise?.options?.map((option, optIdx) => (
-                            <div
-                              key={optIdx}
-                              onClick={() => handleSelectAnswer(idx, optIdx)}
-                              className={`p-2 rounded-lg cursor-pointer transition-all hover:shadow-md text-sm ${
-                                submittedQuestions[idx]
-                                  ? optIdx === exercise.correctAnswer
-                                    ? 'bg-green-100 border-green-300 border'
-                                    : userAnswers[idx] === optIdx
-                                      ? 'bg-red-100 border-red-300 border'
-                                      : 'bg-white border border-gray-200'
-                                  : userAnswers[idx] === optIdx
-                                    ? 'bg-indigo-100 border-indigo-300 border'
-                                    : 'bg-white border border-gray-200 hover:bg-gray-50'
-                              }`}
-                            >
-                              <div className="flex items-start">
-                                <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium mr-2 shadow-sm ${
-                                  submittedQuestions[idx]
-                                    ? optIdx === exercise.correctAnswer
-                                      ? 'bg-green-500 text-white'
-                                      : userAnswers[idx] === optIdx
-                                        ? 'bg-red-500 text-white'
-                                        : 'bg-gray-200 text-gray-700'
-                                    : userAnswers[idx] === optIdx
-                                      ? 'bg-indigo-500 text-white'
-                                      : 'bg-gray-200 text-gray-700'
-                                }`}>
-                                  {String.fromCharCode(65 + optIdx)}
-                                </div>
-                                <span className="flex-1">{option || ""}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        {!submittedQuestions[idx] && userAnswers[idx] !== undefined && (
-                          <div className="flex justify-end mb-2">
-                            <button
-                              onClick={() => handleSubmitAnswer(idx)}
-                              className={`px-3 py-1 text-white rounded-lg text-xs bg-gradient-to-r ${gradientColors} hover:shadow-md transition-all transform hover:scale-105`}
-                            >
-                              Submit
-                            </button>
-                          </div>
-                        )}
-                        {submittedQuestions[idx] && (
-                          <div className="bg-green-50 p-2 rounded-lg border border-green-100">
-                            <p className="text-green-800 text-xs">
-                              <span className="font-medium text-green-700">Explanation: </span>
-                              {exercise?.explanation || "No explanation provided."}
-                            </p>
-                          </div>
-                        )}
-                      </motion.div>
-                    ))}
-                </div>
-              ) : (
-                <p className="text-gray-500">No practice exercises available.</p>
-              )}
-            </div>
-          </div>
-        );
-        
-      case 4: // Matching Exercises
-        return (
-          <div className="h-full flex flex-col">
-            <h2 className="text-lg font-bold text-gray-800 mb-2 pb-1 border-b border-indigo-100 flex items-center justify-between">
-              <div className="flex items-center">
-                <span className={`w-5 h-5 flex items-center justify-center rounded-full bg-gradient-to-r ${gradientColors} text-white mr-2 shadow-md text-xs`}>
-                  {currentSection + 1}
-                </span>
-                {sections[currentSection]}
-              </div>
-              {renderSectionRefreshButton()}
-            </h2>
-            <div className="overflow-auto flex-1 pr-1">
-              {subtopicContent?.matchingExercises && subtopicContent.matchingExercises.length > 0 ? (
-                <div className="space-y-3">
-                  {subtopicContent.matchingExercises.map((exercise, idx) => (
-                    <RenderMatchingExercise 
-                      key={idx} 
-                      exercise={exercise} 
-                      idx={idx} 
-                      matchingAnswers={matchingAnswers}
-                      submittedMatchingExercises={submittedMatchingExercises}
-                      handleSelectLeftItem={handleSelectLeftItem}
-                      handleSelectRightItem={handleSelectRightItem}
-                      handleRemoveMatch={handleRemoveMatch}
-                      handleSubmitMatching={handleSubmitMatching}
-                      isMatchingComplete={isMatchingComplete}
-                      isMatchCorrect={isMatchCorrect}
-                      gradientColors={gradientColors}
-                      selectedLeftItem={selectedLeftItem}
-                    />
-                  ))}
-                </div>
-              ) : (
-                subtopicContent?.exercises && subtopicContent.exercises.some(ex => ex.type === 'matching') ? (
-                  <div className="space-y-3">
-                    {subtopicContent.exercises
-                      .filter(ex => ex.type === 'matching')
-                      .map((exercise, idx) => (
-                        <RenderMatchingExercise 
-                          key={idx} 
-                          exercise={exercise} 
-                          idx={idx} 
-                          matchingAnswers={matchingAnswers}
-                          submittedMatchingExercises={submittedMatchingExercises}
-                          handleSelectLeftItem={handleSelectLeftItem}
-                          handleSelectRightItem={handleSelectRightItem}
-                          handleRemoveMatch={handleRemoveMatch}
-                          handleSubmitMatching={handleSubmitMatching}
-                          isMatchingComplete={isMatchingComplete}
-                          isMatchCorrect={isMatchCorrect}
-                          gradientColors={gradientColors}
-                          selectedLeftItem={selectedLeftItem}
-                        />
-                      ))
-                    }
-                  </div>
-                ) : (
-                  <p className="text-gray-500">No matching exercises available.</p>
-                )
-              )}
-            </div>
-          </div>
-        );
-        
-      default:
-        return null;
-    }
-  }, [
-    currentSection, subtopicContent, questIndex, sections, renderSectionRefreshButton, 
-    formatOverview, handleSelectAnswer, handleSubmitAnswer, userAnswers, submittedQuestions,
-    RenderMatchingExercise, matchingAnswers, submittedMatchingExercises, selectedLeftItem,
-    handleSelectLeftItem, handleSelectRightItem, handleRemoveMatch, handleSubmitMatching,
-    isMatchingComplete, isMatchCorrect
-  ]);
-
+  // Define gradient colors based on quest index
   const gradientColors = questIndex % 2 === 0 
     ? 'from-blue-500 to-indigo-600' 
     : 'from-indigo-500 to-purple-600';
 
-  const gradientTextColors = questIndex % 2 === 0 
-    ? 'from-blue-700 via-indigo-600 to-blue-700' 
-    : 'from-indigo-700 via-purple-600 to-indigo-700';
-
-  const slideVariants = {
-    enter: { opacity: 0, x: 50 },
-    center: { opacity: 1, x: 0 },
-    exit: { opacity: 0, x: -50 }
-  };
-
-  const totalSections = sections.length;
-  const progressPercentage = ((currentSection + 1) / totalSections) * 100;
-  const currentSectionType = sectionToDataMap[currentSection];
-  const isCurrentSectionLoading = isRefreshing || isLoadingSectionContent[sectionToDataMap[currentSection]];
-
-  // Loading state - show spinner only for the current section
-  if (isCurrentSectionLoading) {
-    return (
-      <SlideWrapper className="bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50">
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="flex flex-col items-center">
-            <LoadingSpinner />
-            <p className="mt-4 text-indigo-700 font-medium">
-              Generating {sections[currentSection]} content...
-            </p>
-            <p className="mt-2 text-gray-500 text-sm">
-              This may take a few moments. All sections will be loaded in the background.
-            </p>
+  switch (currentSection) {
+    case 0: // Overview
+      return (
+        <div className="h-full flex flex-col">
+          <h2 className="text-lg font-bold text-gray-800 mb-3 pb-1 border-b border-indigo-100 flex items-center justify-between">
+            <div className="flex items-center">
+              <span className={`w-5 h-5 flex items-center justify-center rounded-full bg-gradient-to-r ${gradientColors} text-white mr-2 shadow-md text-xs`}>
+                {currentSection + 1}
+              </span>
+              {sections[currentSection]}
+            </div>
+            {renderSectionRefreshButton()}
+          </h2>
+          <div className="prose prose-sm prose-indigo max-w-none p-4 bg-gradient-to-br from-indigo-50/50 to-blue-50/50 rounded-lg shadow-sm border border-blue-100 flex-1 overflow-auto">
+            {formatOverview(subtopicContent?.overview) || 
+              <p className="text-base leading-relaxed">No overview content available.</p>
+            }
           </div>
         </div>
-      </SlideWrapper>
-    );
-  }
-
-  // No content case
-  if (!subtopicContent) {
-    return (
-      <SlideWrapper className="bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50">
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="text-center max-w-lg p-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-indigo-100">
-            <h3 className="text-xl font-bold text-indigo-800 mb-3">Content Not Generated Yet</h3>
-            <p className="text-gray-600 mb-4">This subtopic content hasn't been generated yet. Click the button below to create interactive learning content.</p>
-            <button
-              onClick={() => {
-                setIsLoadingSectionContent(prev => ({
-                  ...prev,
-                  overview: true
-                }));
-                contentFetchAttemptedRef.current.overview = false;
-                onRefreshContentRef.current({
-                  questIndex,
-                  subtopicIndex,
-                  sectionType: 'overview',
-                  forceRefresh: true
-                });
-              }}
-              className="px-5 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
-            >
-              Generate Content
-            </button>
+      );
+      
+    case 1: // Key Points
+      return (
+        <div className="h-full flex flex-col">
+          <h2 className="text-lg font-bold text-gray-800 mb-2 pb-1 border-b border-indigo-100 flex items-center justify-between">
+            <div className="flex items-center">
+              <span className={`w-5 h-5 flex items-center justify-center rounded-full bg-gradient-to-r ${gradientColors} text-white mr-2 shadow-md text-xs`}>
+                {currentSection + 1}
+              </span>
+              {sections[currentSection]}
+            </div>
+            {renderSectionRefreshButton()}
+          </h2>
+          <div className="space-y-2 overflow-auto flex-1 pr-1">
+            {subtopicContent?.keyPoints?.map((point, idx) => (
+              <motion.div 
+                key={idx} 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.05 }}
+                className="bg-gradient-to-r from-indigo-50 to-blue-50 p-3 rounded-lg border-l-4 border-indigo-500 shadow-sm transform hover:scale-105 transition-all hover:shadow-md"
+              >
+                <h4 className="font-semibold text-indigo-800 mb-1 text-sm flex items-center">
+                  <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center mr-2 shadow-sm text-xs">
+                    {idx + 1}
+                  </span>
+                  {point?.title || `Key Point ${idx+1}`}
+                </h4>
+                <p className="text-gray-700 pl-7 text-sm">{point?.description || ""}</p>
+              </motion.div>
+            )) || <p className="text-gray-500">No key points available.</p>}
           </div>
         </div>
-      </SlideWrapper>
-    );
-  }
-
-  // Missing current section content
-  if (!subtopicContent[currentSectionType] || 
-    (Array.isArray(subtopicContent[currentSectionType]) && subtopicContent[currentSectionType].length === 0)) {
-    return (
-      <SlideWrapper className="bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50">
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="text-center max-w-lg p-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-indigo-100">
-            <h3 className="text-xl font-bold text-indigo-800 mb-3">{sections[currentSection]} Content Missing</h3>
-            <p className="text-gray-600 mb-4">This {sections[currentSection].toLowerCase()} content hasn't been generated yet. Click the button below to create it.</p>
-            <button
-              onClick={() => {
-                setIsLoadingSectionContent(prev => ({
-                  ...prev,
-                  [currentSectionType]: true
-                }));
-                contentFetchAttemptedRef.current[currentSectionType] = false;
-                onRefreshContentRef.current({
-                  questIndex,
-                  subtopicIndex,
-                  sectionType: currentSectionType,
-                  forceRefresh: true
-                });
-              }}
-              className="px-5 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
-            >
-              Generate {sections[currentSection]}
-            </button>
+      );
+      
+    case 2: // Examples
+      return (
+        <div className="h-full flex flex-col">
+          <h2 className="text-lg font-bold text-gray-800 mb-2 pb-1 border-b border-indigo-100 flex items-center justify-between">
+            <div className="flex items-center">
+              <span className={`w-5 h-5 flex items-center justify-center rounded-full bg-gradient-to-r ${gradientColors} text-white mr-2 shadow-md text-xs`}>
+                {currentSection + 1}
+              </span>
+              {sections[currentSection]}
+            </div>
+            {renderSectionRefreshButton()}
+          </h2>
+          <div className="space-y-2 overflow-auto flex-1 pr-1">
+            {Array.isArray(subtopicContent?.examples) ? (
+              subtopicContent.examples.map((example, idx) => (
+                <motion.div 
+                  key={idx}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.05 }}
+                  className="p-3 border border-blue-100 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50/50 shadow-sm hover:shadow-md transition-all transform hover:scale-105"
+                >
+                  {typeof example === 'object' && example !== null ? (
+                    <div className="space-y-2">
+                      {example.title && (
+                        <h4 className="font-semibold text-indigo-800 text-sm flex items-center">
+                          <div className="bg-blue-600 text-white rounded-full w-5 h-5 flex items-center justify-center font-bold mr-2 flex-shrink-0 mt-0.5 shadow-sm text-xs">
+                            {idx + 1}
+                          </div>
+                          {example.title}
+                        </h4>
+                      )}
+                      {example.scenario && (
+                        <p className="text-gray-700 text-sm pl-7">{example.scenario}</p>
+                      )}
+                      {example.analysis && (
+                        <div className="bg-blue-50 p-2 rounded-md mt-2 text-sm text-gray-600 pl-7">
+                          <span className="font-medium text-indigo-600">Analysis: </span>
+                          {example.analysis}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-start">
+                      <div className="bg-blue-600 text-white rounded-full w-5 h-5 flex items-center justify-center font-bold mr-2 flex-shrink-0 mt-0.5 shadow-sm text-xs">
+                        {idx + 1}
+                      </div>
+                      <p className="text-gray-700 text-sm">{example || ""}</p>
+                    </div>
+                  )}
+                </motion.div>
+              ))
+            ) : (
+              <p className="text-gray-500">No examples available.</p>
+            )}
           </div>
         </div>
-      </SlideWrapper>
-    );
-  }
-
-  // Required data missing
-  if (!content || !content.quests || questIndex === undefined || questIndex === null || subtopicIndex === undefined || subtopicIndex === null) {
-    return (
-      <SlideWrapper className="bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50">
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="text-center">
-            <h3 className="text-xl text-red-600 mb-4">Required content data not found</h3>
-            <button
-              onClick={onPrevious}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-            >
-              Back to Course
-            </button>
+      );
+      
+    case 3: // Practice Exercises
+      return (
+        <div className="h-full flex flex-col">
+          <h2 className="text-lg font-bold text-gray-800 mb-2 pb-1 border-b border-indigo-100 flex items-center justify-between">
+            <div className="flex items-center">
+              <span className={`w-5 h-5 flex items-center justify-center rounded-full bg-gradient-to-r ${gradientColors} text-white mr-2 shadow-md text-xs`}>
+                {currentSection + 1}
+              </span>
+              {sections[currentSection]}
+            </div>
+            {renderSectionRefreshButton()}
+          </h2>
+          <div className="overflow-auto flex-1 pr-1">
+            {subtopicContent?.exercises && subtopicContent.exercises.length > 0 ? (
+              <div className="space-y-3">
+                {subtopicContent.exercises
+                  .filter(exercise => exercise.type !== 'matching')
+                  .map((exercise, idx) => (
+                    <motion.div
+                      key={idx}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 }}
+                      className="bg-gradient-to-br from-white to-gray-50 p-3 rounded-lg border border-gray-200 shadow-sm"
+                    >
+                      <h4 className="font-medium text-gray-800 mb-2 text-sm border-b border-gray-100 pb-1 flex items-center">
+                        <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center mr-2 shadow-sm text-xs">
+                          Q{idx + 1}
+                        </span>
+                        {exercise?.question || `Exercise ${idx+1}`}
+                      </h4>
+                      <div className="space-y-1 mb-2">
+                        {exercise?.options?.map((option, optIdx) => (
+                          <div
+                            key={optIdx}
+                            onClick={() => handleSelectAnswer(idx, optIdx)}
+                            className={`p-2 rounded-lg cursor-pointer transition-all hover:shadow-md text-sm ${
+                              submittedQuestions[idx]
+                                ? optIdx === exercise.correctAnswer
+                                  ? 'bg-green-100 border-green-300 border'
+                                  : userAnswers[idx] === optIdx
+                                    ? 'bg-red-100 border-red-300 border'
+                                    : 'bg-white border border-gray-200'
+                                : userAnswers[idx] === optIdx
+                                  ? 'bg-indigo-100 border-indigo-300 border'
+                                  : 'bg-white border border-gray-200 hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex items-start">
+                              <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium mr-2 shadow-sm ${
+                                submittedQuestions[idx]
+                                  ? optIdx === exercise.correctAnswer
+                                    ? 'bg-green-500 text-white'
+                                    : userAnswers[idx] === optIdx
+                                      ? 'bg-red-500 text-white'
+                                      : 'bg-gray-200 text-gray-700'
+                                  : userAnswers[idx] === optIdx
+                                    ? 'bg-indigo-500 text-white'
+                                    : 'bg-gray-200 text-gray-700'
+                              }`}>
+                                {String.fromCharCode(65 + optIdx)}
+                              </div>
+                              <span className="flex-1">{option || ""}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {!submittedQuestions[idx] && userAnswers[idx] !== undefined && (
+                        <div className="flex justify-end mb-2">
+                          <button
+                            onClick={() => handleSubmitAnswer(idx)}
+                            className={`px-3 py-1 text-white rounded-lg text-xs bg-gradient-to-r ${gradientColors} hover:shadow-md transition-all transform hover:scale-105`}
+                          >
+                            Submit
+                          </button>
+                        </div>
+                      )}
+                      {submittedQuestions[idx] && (
+                        <div className="bg-green-50 p-2 rounded-lg border border-green-100">
+                          <p className="text-green-800 text-xs">
+                            <span className="font-medium text-green-700">Explanation: </span>
+                            {exercise?.explanation || "No explanation provided."}
+                          </p>
+                        </div>
+                      )}
+                    </motion.div>
+                  ))}
+              </div>
+            ) : (
+              <p className="text-gray-500">No practice exercises available.</p>
+            )}
           </div>
         </div>
-      </SlideWrapper>
-    );
+      );
+      
+    case 4: // Matching Exercises
+      return (
+        <div className="h-full flex flex-col">
+          <h2 className="text-lg font-bold text-gray-800 mb-2 pb-1 border-b border-indigo-100 flex items-center justify-between">
+            <div className="flex items-center">
+              <span className={`w-5 h-5 flex items-center justify-center rounded-full bg-gradient-to-r ${gradientColors} text-white mr-2 shadow-md text-xs`}>
+                {currentSection + 1}
+              </span>
+              {sections[currentSection]}
+            </div>
+            {renderSectionRefreshButton()}
+          </h2>
+          <div className="overflow-auto flex-1 pr-1">
+            {subtopicContent?.matchingExercises && subtopicContent.matchingExercises.length > 0 ? (
+              <div className="space-y-3">
+                {subtopicContent.matchingExercises.map((exercise, idx) => (
+                  <RenderMatchingExercise 
+                    key={idx} 
+                    exercise={exercise} 
+                    idx={idx} 
+                    matchingAnswers={matchingAnswers}
+                    submittedMatchingExercises={submittedMatchingExercises}
+                    handleSelectLeftItem={handleSelectLeftItem}
+                    handleSelectRightItem={handleSelectRightItem}
+                    handleRemoveMatch={handleRemoveMatch}
+                    handleSubmitMatching={handleSubmitMatching}
+                    isMatchingComplete={isMatchingComplete}
+                    isMatchCorrect={isMatchCorrect}
+                    gradientColors={gradientColors}
+                    selectedLeftItem={selectedLeftItem}
+                  />
+                ))}
+              </div>
+            ) : (
+              subtopicContent?.exercises && subtopicContent.exercises.some(ex => ex.type === 'matching') ? (
+                <div className="space-y-3">
+                  {subtopicContent.exercises
+                    .filter(ex => ex.type === 'matching')
+                    .map((exercise, idx) => (
+                      <RenderMatchingExercise 
+                        key={idx} 
+                        exercise={exercise} 
+                        idx={idx} 
+                        matchingAnswers={matchingAnswers}
+                        submittedMatchingExercises={submittedMatchingExercises}
+                        handleSelectLeftItem={handleSelectLeftItem}
+                        handleSelectRightItem={handleSelectRightItem}
+                        handleRemoveMatch={handleRemoveMatch}
+                        handleSubmitMatching={handleSubmitMatching}
+                        isMatchingComplete={isMatchingComplete}
+                        isMatchCorrect={isMatchCorrect}
+                        gradientColors={gradientColors}
+                        selectedLeftItem={selectedLeftItem}
+                      />
+                    ))
+                  }
+                </div>
+              ) : (
+                <p className="text-gray-500">No matching exercises available.</p>
+              )
+            )}
+          </div>
+        </div>
+      );
+      
+    default:
+      return null;
   }
+}, [
+  currentSection, subtopicContent, questIndex, sections, renderSectionRefreshButton, 
+  formatOverview, handleSelectAnswer, handleSubmitAnswer, userAnswers, submittedQuestions,
+  RenderMatchingExercise, matchingAnswers, submittedMatchingExercises, selectedLeftItem,
+  handleSelectLeftItem, handleSelectRightItem, handleRemoveMatch, handleSubmitMatching,
+  isMatchingComplete, isMatchCorrect, sectionToDataMap
+]);
 
-  // Main render
-// Main render (continuing from where your code left off)
+// Main component rendering
+const gradientColors = questIndex % 2 === 0 
+  ? 'from-blue-500 to-indigo-600' 
+  : 'from-indigo-500 to-purple-600';
+
+const gradientTextColors = questIndex % 2 === 0 
+  ? 'from-blue-700 via-indigo-600 to-blue-700' 
+  : 'from-indigo-700 via-purple-600 to-indigo-700';
+
+const slideVariants = {
+  enter: { opacity: 0, x: 50 },
+  center: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: -50 }
+};
+
+const totalSections = sections.length;
+const progressPercentage = ((currentSection + 1) / totalSections) * 100;
+const currentSectionType = sectionToDataMap[currentSection];
+const isCurrentSectionLoading = isRefreshing || isLoadingSectionContent[sectionToDataMap[currentSection]];
+
+// Loading state - show spinner only for the current section
+if (isCurrentSectionLoading) {
+  return (
+    <SlideWrapper className="bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50">
+      <div className="w-full h-full flex items-center justify-center">
+        <div className="flex flex-col items-center">
+          <LoadingSpinner />
+          <p className="mt-4 text-indigo-700 font-medium">
+            Generating {sections[currentSection]} content...
+          </p>
+          <p className="mt-2 text-gray-500 text-sm">
+            This may take a few moments. All sections will be loaded in the background.
+          </p>
+        </div>
+      </div>
+    </SlideWrapper>
+  );
+}
+
+// No content case
+if (!subtopicContent) {
+  return (
+    <SlideWrapper className="bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50">
+      <div className="w-full h-full flex items-center justify-center">
+        <div className="text-center max-w-lg p-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-indigo-100">
+          <h3 className="text-xl font-bold text-indigo-800 mb-3">Content Not Generated Yet</h3>
+          <p className="text-gray-600 mb-4">This subtopic content hasn't been generated yet. Click the button below to create interactive learning content.</p>
+          <button
+            onClick={() => {
+              setIsLoadingSectionContent(prev => ({
+                ...prev,
+                overview: true
+              }));
+              contentFetchAttemptedRef.current.overview = false;
+              onRefreshContentRef.current({
+                questIndex,
+                subtopicIndex,
+                sectionType: 'overview',
+                forceRefresh: true
+              });
+            }}
+            className="px-5 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
+          >
+            Generate Content
+          </button>
+        </div>
+      </div>
+    </SlideWrapper>
+  );
+}
+
+// Missing current section content
+if (!subtopicContent[currentSectionType] || 
+  (Array.isArray(subtopicContent[currentSectionType]) && subtopicContent[currentSectionType].length === 0)) {
+  return (
+    <SlideWrapper className="bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50">
+      <div className="w-full h-full flex items-center justify-center">
+        <div className="text-center max-w-lg p-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-indigo-100">
+          <h3 className="text-xl font-bold text-indigo-800 mb-3">{sections[currentSection]} Content Missing</h3>
+          <p className="text-gray-600 mb-4">This {sections[currentSection].toLowerCase()} content hasn't been generated yet. Click the button below to create it.</p>
+          <button
+            onClick={() => {
+              setIsLoadingSectionContent(prev => ({
+                ...prev,
+                [currentSectionType]: true
+              }));
+              contentFetchAttemptedRef.current[currentSectionType] = false;
+              onRefreshContentRef.current({
+                questIndex,
+                subtopicIndex,
+                sectionType: currentSectionType,
+                forceRefresh: true
+              });
+            }}
+            className="px-5 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
+          >
+            Generate {sections[currentSection]}
+          </button>
+        </div>
+      </div>
+    </SlideWrapper>
+  );
+}
+
+// Required data missing
+if (!content || !content.quests || questIndex === undefined || questIndex === null || subtopicIndex === undefined || subtopicIndex === null) {
+  return (
+    <SlideWrapper className="bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50">
+      <div className="w-full h-full flex items-center justify-center">
+        <div className="text-center">
+          <h3 className="text-xl text-red-600 mb-4">Required content data not found</h3>
+          <button
+            onClick={onPrevious}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+          >
+            Back to Course
+          </button>
+        </div>
+      </div>
+    </SlideWrapper>
+  );
+}
+
+// Main render
 return (
   <SlideWrapper className="bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50">
     <div className="w-full h-full flex items-center justify-center px-2">

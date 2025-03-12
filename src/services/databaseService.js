@@ -140,8 +140,4 @@ const DatabaseService = {
 };
 
 
-
-
-
-
 export default DatabaseService;
