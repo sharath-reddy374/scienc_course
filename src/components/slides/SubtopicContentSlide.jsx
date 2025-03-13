@@ -838,114 +838,77 @@ const SubtopicContentSlide = React.memo(({
   }, [subtopicContent]);
 
   // Format overview content
-// In SubtopicContentSlide.jsx, enhance the formatOverview function to handle both formats:
+// In SubtopicContentSlide.jsx, enhance the formatOverview function to handle both formats
 
-// Replace the existing formatOverview function in SubtopicContentSlide.jsx with this version
-
-const formatOverview = useCallback((overviewText) => {
+// eslint-disable-next-line react-hooks/exhaustive-deps
+const formatOverview = (overviewText) => {
   if (!overviewText) return null;
   
-  // Method 1: Try splitting by ---SECTION--- delimiter
-  if (overviewText.includes('---SECTION---')) {
-    console.log("Using section delimiter method");
-    const sections = overviewText.split("---SECTION---");
-    return (
-      <div className="space-y-6">
-        {sections.map((section, index) => {
-          const trimmedSection = section.trim();
-          const colonIndex = trimmedSection.indexOf(':');
-          if (colonIndex > 0) {
-            const title = trimmedSection.substring(0, colonIndex);
-            const content = trimmedSection.substring(colonIndex + 1).trim();
-            const paragraphs = content.split(/(?<=\. )(?=[A-Z])/g);
-            return (
-              <div key={index} className="mb-4">
-                <h3 className="font-bold text-indigo-700 mb-2 pb-1 border-b border-indigo-100">{title}:</h3>
-                <div className="ml-0">
-                  {paragraphs.map((paragraph, pIdx) => (
-                    <p key={pIdx} className="text-gray-700 mb-2">{paragraph.trim()}</p>
-                  ))}
-                </div>
-              </div>
-            );
-          }
-          return <p key={index} className="text-gray-700">{trimmedSection}</p>;
-        })}
-      </div>
-    );
-  }
-  
-  // Method 2: Try matching section headers (INTRODUCTION:, BACKGROUND:, etc.)
-  const sectionRegex = /(INTRODUCTION|BACKGROUND|SIGNIFICANCE):(.+?)(?=(INTRODUCTION|BACKGROUND|SIGNIFICANCE):|$)/gs;
-  const sectionMatches = [...overviewText.matchAll(sectionRegex)];
-  
-  if (sectionMatches.length > 0) {
-    console.log("Using section header regex method");
-    return (
-      <div className="space-y-6">
-        {sectionMatches.map((match, index) => {
-          const title = match[1];
-          const content = match[2].trim();
-          const paragraphs = content.split(/(?<=\. )(?=[A-Z])/g);
-          return (
-            <div key={index} className="mb-4">
-              <h3 className="font-bold text-indigo-700 mb-2 pb-1 border-b border-indigo-100">{title}:</h3>
-              <div className="ml-0">
-                {paragraphs.map((paragraph, pIdx) => (
-                  <p key={pIdx} className="text-gray-700 mb-2">{paragraph.trim()}</p>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-  
-  // Method 3: Check for markdown headers
-  if (overviewText.includes('##')) {
-    console.log("Using markdown headers method");
-    const sections = overviewText.split(/(?=## )/);
-    return (
-      <div className="space-y-6">
-        {sections.filter(section => section.trim()).map((section, index) => {
-          const lines = section.split("\n");
-          const titleLine = lines[0];
-          const title = titleLine.replace(/^## /, '').trim();
-          const content = lines.slice(1).join("\n").trim();
-          
-          // Split content into paragraphs
-          const paragraphs = content.split(/\n\n+/);
-          
-          return (
-            <div key={index} className="mb-4">
-              <h3 className="font-bold text-indigo-700 mb-2 pb-1 border-b border-indigo-100">{title}</h3>
-              <div className="ml-0">
-                {paragraphs.map((paragraph, pIdx) => (
-                  <p key={pIdx} className="text-gray-700 mb-2">
-                    {paragraph.trim()}
-                  </p>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-  
-  // Method 4: Fallback - treat as a single block of text, at least make it readable
-  console.log("Using fallback method");
-  const paragraphs = overviewText.split(/\n\n+|\. (?=[A-Z])/g);
+  // Split the overview by the section delimiter
+  const sections = overviewText.split("---SECTION---");
   
   return (
     <div className="space-y-4">
-      {paragraphs.map((paragraph, index) => (
-        <p key={index} className="text-gray-700 mb-2">{paragraph.trim()}</p>
-      ))}
+      {sections.map((section, index) => {
+        const trimmedSection = section.trim();
+        const colonIndex = trimmedSection.indexOf(':');
+        
+        if (colonIndex > 0) {
+          const title = trimmedSection.substring(0, colonIndex);
+          const content = trimmedSection.substring(colonIndex + 1).trim();
+          
+          // Split content into manageable chunks (paragraphs or sentences)
+          const paragraphs = content.split(/(?<=\. )(?=[A-Z])/g);
+          
+          // Determine color scheme based on section title
+          let colorScheme = "bg-indigo-50 border-indigo-200";
+          let iconType = "📝";
+          
+          if (title.includes("INTRODUCTION")) {
+            colorScheme = "bg-blue-50 border-blue-200";
+            iconType = "🔍";
+          } else if (title.includes("BACKGROUND")) {
+            colorScheme = "bg-purple-50 border-purple-200";
+            iconType = "📚";
+          } else if (title.includes("SIGNIFICANCE")) {
+            colorScheme = "bg-green-50 border-green-200";
+            iconType = "⭐";
+          }
+          
+          return (
+            <div key={index} className={`rounded-lg ${colorScheme} border p-4 transition-all duration-300 hover:shadow-md`}>
+              {/* Interactive, collapsible section */}
+              <details open className="group cursor-pointer">
+                <summary className="flex items-center justify-between font-bold text-indigo-700 mb-2 list-none">
+                  <div className="flex items-center">
+                    <span className="mr-2 text-xl">{iconType}</span>
+                    <span>{title}</span>
+                  </div>
+                  <div className="transform group-open:rotate-180 transition-transform duration-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </summary>
+                <div className="mt-3 pl-6 space-y-3">
+                  {paragraphs.map((paragraph, pIdx) => (
+                    <div key={pIdx} className="flex items-start">
+                      <div className="h-6 w-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center mr-2 flex-shrink-0 mt-0.5">
+                        {pIdx + 1}
+                      </div>
+                      <p className="text-gray-700">{paragraph.trim()}</p>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </div>
+          );
+        }
+        return <p key={index} className="text-gray-700 p-3 bg-gray-50 rounded-lg">{trimmedSection}</p>;
+      })}
     </div>
   );
-}, []);
+};
 
   // Render section refresh button
   const renderSectionRefreshButton = useCallback(() => {
@@ -1155,6 +1118,109 @@ const formatOverview = useCallback((overviewText) => {
       </motion.div>
     );
   }, [selectedLeftItem]);
+
+  const [viewMode, setViewMode] = useState('text');
+
+
+  const renderVisualMode = (content) => {
+    if (!content) return null;
+    
+    // Extract key concepts for visualization
+    const sections = content.split("---SECTION---");
+    const keywords = sections.flatMap(section => {
+      const text = section.substring(section.indexOf(':') + 1);
+      return extractKeywords(text, 5); // Extract top 5 keywords from each section
+    });
+    
+    return (
+      <div className="p-4 rounded-lg border border-indigo-100 bg-gradient-to-br from-indigo-50 to-blue-50">
+        <h3 className="text-lg font-bold text-center text-indigo-700 mb-4">Visual Concept Map</h3>
+        
+        <div className="flex justify-center">
+          <div className="relative w-full max-w-lg h-64 bg-white rounded-lg p-3">
+            {/* Central topic */}
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-indigo-600 text-white rounded-full px-4 py-2 shadow-lg text-center">
+              {subtopicContent?.title?.split(' ').slice(0, 3).join(' ') || 'Topic'}
+            </div>
+            
+            {/* Surrounding keywords */}
+            {keywords.slice(0, 8).map((keyword, i) => {
+              // Position keywords in a circle around the central topic
+              const angle = (i * Math.PI * 2) / 8;
+              const radius = 90; // px
+              const left = `calc(50% + ${Math.cos(angle) * radius}px)`;
+              const top = `calc(50% + ${Math.sin(angle) * radius}px)`;
+              
+              return (
+                <div 
+                  key={i}
+                  className="absolute transform -translate-x-1/2 -translate-y-1/2 bg-blue-100 text-blue-800 rounded-lg px-3 py-1 text-sm border border-blue-200 shadow-sm"
+                  style={{ left, top }}
+                >
+                  {keyword}
+                </div>
+              );
+            })}
+            
+            {/* Connection lines */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none" xmlns="http://www.w3.org/2000/svg">
+              {keywords.slice(0, 8).map((_, i) => {
+                const angle = (i * Math.PI * 2) / 8;
+                const radius = 90; // px
+                const x2 = 50 + Math.cos(angle) * radius;
+                const y2 = 50 + Math.sin(angle) * radius;
+                
+                return (
+                  <line 
+                    key={i}
+                    x1="50%" 
+                    y1="50%" 
+                    x2={`${x2}%`} 
+                    y2={`${y2}%`} 
+                    stroke="#818cf8" 
+                    strokeWidth="1.5" 
+                    strokeDasharray="3,3" 
+                  />
+                );
+              })}
+            </svg>
+          </div>
+        </div>
+        
+        <div className="mt-4 text-center">
+          <p className="text-sm text-indigo-600 italic">
+            Visual representations help with concept connection and memory retention
+          </p>
+        </div>
+      </div>
+    );
+  };
+  
+  // Helper function to extract keywords
+  const extractKeywords = (text, count = 5) => {
+    if (!text) return [];
+    
+    // Simple keyword extraction (remove common words and get most frequent terms)
+    const commonWords = new Set(['the', 'and', 'a', 'an', 'in', 'on', 'of', 'to', 'for', 'with', 'as', 'that', 'this', 'it', 'by', 'from', 'at', 'be', 'are', 'is', 'was', 'were']);
+    
+    const words = text
+      .toLowerCase()
+      .replace(/[^\w\s]/g, '')
+      .split(/\s+/)
+      .filter(word => word.length > 3 && !commonWords.has(word));
+    
+    const frequency = {};
+    words.forEach(word => {
+      frequency[word] = (frequency[word] || 0) + 1;
+    });
+    
+    return Object.entries(frequency)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, count)
+      .map(([word]) => word);
+  };
+
+
   
   // Memoized renderSectionContent function
   const renderSectionContent = useCallback(() => {
@@ -1181,24 +1247,25 @@ const formatOverview = useCallback((overviewText) => {
 
     switch (currentSection) {
       case 0: // Overview
-        return (
-          <div className="h-full flex flex-col">
-            <h2 className="text-lg font-bold text-gray-800 mb-3 pb-1 border-b border-indigo-100 flex items-center justify-between">
-              <div className="flex items-center">
-                <span className={`w-5 h-5 flex items-center justify-center rounded-full bg-gradient-to-r ${gradientColors} text-white mr-2 shadow-md text-xs`}>
-                  {currentSection + 1}
-                </span>
-                {sections[currentSection]}
-              </div>
-              {renderSectionRefreshButton()}
-            </h2>
-            <div className="prose prose-sm prose-indigo max-w-none p-4 bg-gradient-to-br from-indigo-50/50 to-blue-50/50 rounded-lg shadow-sm border border-blue-100 flex-1 overflow-auto">
-              {formatOverview(subtopicContent?.overview) || 
-                <p className="text-base leading-relaxed">No overview content available.</p>
-              }
-            </div>
-          </div>
-        );
+  return (
+    <div className="h-full flex flex-col">
+      <h2 className="text-lg font-bold text-gray-800 mb-3 pb-1 border-b border-indigo-100 flex items-center justify-between">
+        <div className="flex items-center">
+          <span className={`w-5 h-5 flex items-center justify-center rounded-full bg-gradient-to-r ${gradientColors} text-white mr-2 shadow-md text-xs`}>
+            {currentSection + 1}
+          </span>
+          {sections[currentSection]}
+        </div>
+        {renderSectionRefreshButton()}
+      </h2>
+      
+      <div className="overflow-auto p-4 flex-1 rounded-lg border border-indigo-100 bg-white">
+        {formatOverview(subtopicContent?.overview) || 
+          <p className="text-base leading-relaxed p-4 bg-gray-50 rounded-lg">No overview content available.</p>
+        }
+      </div>
+    </div>
+  );
         
       case 1: // Key Points
         return (

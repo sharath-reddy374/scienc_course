@@ -1017,7 +1017,7 @@ export const fetchWelcomeContent = async (courseData) => {
       "title": "An engaging course title that includes the subject and topic",
       "icon": "A single emoji that represents this subject area",
       "tagline": "A short, catchy phrase that captures the essence of this course",
-      "description": "3-4 sentences welcoming the student and explaining what they will learn in this course. Make this description inspiring and motivational."
+      "description": "1-2 sentences welcoming the student and explaining what they will learn in this course. Make this description inspiring and motivational."
     }
     
     Make the content educational, engaging, and appropriate for an interactive learning experience.
