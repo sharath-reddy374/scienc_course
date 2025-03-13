@@ -15,8 +15,8 @@ export const generateSlideContent = async (slideType, context, options = {}) => 
         const prompt = getSlidePrompt(slideType, context, options);
         console.log('Using prompt:', prompt);
 
-        const response = await client.chat.completions.create({
-            model: "gpt-3.5-turbo",
+        const response = await client.beta.chat.completions.parse({
+            model: "gpt-4o-mini",
             messages: [
                 {
                     "role": "system",
@@ -26,7 +26,8 @@ export const generateSlideContent = async (slideType, context, options = {}) => 
                     "role": "user",
                     "content": prompt
                 }
-            ]
+            ],
+            response_format: { type: "json_object" }
         });
         
         const content = response.choices[0].message.content;
@@ -194,8 +195,8 @@ export const fetchSubtopicContent = async (courseData, questIndex, subtopicIndex
     const prompt = generateSectionPrompt(courseData, quest, objective, sectionType);
     
     // Call the OpenAI API
-    const response = await client.chat.completions.create({
-      model: "gpt-3.5-turbo",
+    const response = await client.beta.chat.completions.parse({
+      model: "gpt-4o-mini",
       messages: [
         {
           "role": "system",
@@ -205,7 +206,8 @@ export const fetchSubtopicContent = async (courseData, questIndex, subtopicIndex
           "role": "user",
           "content": prompt
         }
-      ]
+      ],
+      response_format: { type: "json_object" }
     });
     
     const content = response.choices[0].message.content;
@@ -554,40 +556,50 @@ function generateSectionPrompt(courseData, quest, objective, sectionType) {
   let expectedJsonStructure = '';
   
   switch(sectionType) {
+
     case 'overview':
-      sectionSpecificPrompt = `
-        FOCUS ON OVERVIEW:
-  Create an extensive, comprehensive, and in-depth overview about "${objective}" in the context of "${quest.title}".
+  sectionSpecificPrompt = `
+    FOCUS ON OVERVIEW:
+    Create an extensive, comprehensive, and in-depth overview about "${objective}" in the context of "${quest.title}".
+    
+    The overview should include:
+    - A thorough introduction explaining key concepts, importance, and foundational principles with at least 1 paragraph.
+    - Detailed background information that provides historical context, theoretical frameworks, and evolution of knowledge
+    - An extensive discussion of significance covering real-world applications, implications, and future directions
+    
+    IMPORTANT: Provide EXTENSIVE and DETAILED content - don't be brief or concise. The user needs comprehensive educational material.
+    
+    FORMAT THE OVERVIEW EXACTLY AS FOLLOWS:
+    - Format your overview as a single string with "---SECTION---" as the exact delimiter between sections
+    - The output must look like: "INTRODUCTION: [content] ---SECTION--- BACKGROUND: [content] ---SECTION--- SIGNIFICANCE: [content]"
+    - Each section must start with its title in ALL CAPS followed by a colon
+    - Do NOT use markdown headings like ## or ###
+    - Do NOT change the delimiter text - it must be exactly "---SECTION---" 
+    
+    REQUIRED SECTIONS:
+    1. INTRODUCTION: [detailed content]
+    2. ---SECTION---
+    3. BACKGROUND: [detailed content]
+    4. ---SECTION---
+    5. SIGNIFICANCE: [detailed content]
+  `;
   
-  The overview should include:
-  - A thorough introduction explaining key concepts, importance, and foundational principles with atleast 2 paragraphs each.
-  - Detailed background information that provides historical context, theoretical frameworks, and evolution of knowledge
-  - An extensive discussion of significance covering real-world applications, implications, and future directions
-  
-  IMPORTANT: Provide EXTENSIVE and DETAILED content - don't be brief or concise. The user needs comprehensive educational material.
-  
-  Format the overview as a single string with special delimiter "---SECTION---" between sections.
-  Include EXACTLY three sections: INTRODUCTION, BACKGROUND, and SIGNIFICANCE.
-  Each section should begin with its title in ALL CAPS followed by a colon.
-  Each section should be at least 6-8 paragraphs of detailed content.
-`;
-      
-      expectedJsonStructure = `
-        {
-          "title": "${quest.title} - ${objective}",
-          "overview": "INTRODUCTION: [detailed introduction about ${objective}] ---SECTION--- BACKGROUND: [detailed background about ${objective}] ---SECTION--- SIGNIFICANCE: [detailed explanation of the significance of ${objective}]"
-        }
-      `;
-      break;
+  expectedJsonStructure = `
+    {
+      "title": "${quest.title} - ${objective}",
+      "overview": "INTRODUCTION: [detailed introduction about ${objective}] ---SECTION--- BACKGROUND: [detailed background information about ${objective}] ---SECTION--- SIGNIFICANCE: [detailed explanation of the significance of ${objective}]"
+    }
+  `;
+break;
       
     case 'keyPoints':
       sectionSpecificPrompt = `
         FOCUS ON KEY POINTS:
-  Create 5-8 extensive, well-researched key points about "${objective}" in the context of "${quest.title}".
+  Create 5-7 extensive, well-researched key points about "${objective}" in the context of "${quest.title}".
   
   Each key point should:
   - Have a clear, descriptive title
-  - Include an extensive explanation (at least 3-4 paragraphs) with evidence-based information
+  - Include an extensive explanation (at least 1-2 paragraphs) with evidence-based information
   - Be directly relevant to the specific objective
   - Cover different aspects of the topic in great depth with no redundancy
   - Be substantial, comprehensive, and educational
@@ -653,7 +665,7 @@ function generateSectionPrompt(courseData, quest, objective, sectionType) {
     case 'exercises':
       sectionSpecificPrompt = `
         FOCUS ON EXERCISES:
-        Create 3-4 multiple-choice questions about "${objective}" in the context of "${quest.title}".
+        Create 4-5 multiple-choice questions about "${objective}" in the context of "${quest.title}".
         
         The exercises should:
         - Cover different difficulty levels (beginner, intermediate, advanced)
@@ -1013,8 +1025,8 @@ export const fetchWelcomeContent = async (courseData) => {
     For the description, focus on creating an exciting introduction that makes students eager to start learning.`;
     
     // Generate content for welcome slide with explicit response format
-    const response = await client.chat.completions.create({
-      model: "gpt-3.5-turbo",
+    const response = await client.beta.chat.completions.parse({
+      model: "gpt-4o-mini",
       messages: [
         {
           "role": "system",
@@ -1025,8 +1037,7 @@ export const fetchWelcomeContent = async (courseData) => {
           "content": prompt
         }
       ],
-      // If using a model that supports response_format:
-      // response_format: { type: "json_object" }
+     response_format: { type: "json_object" }
     });
     
     const content = response.choices[0].message.content;
@@ -1224,8 +1235,8 @@ export const fetchSummaryContent = async (courseData) => {
       Ensure all content is educational, relevant, and directly related to ${courseData.topic || 'the course subject'}.
     `;
     
-    const response = await client.chat.completions.create({
-      model: "gpt-3.5-turbo",
+    const response = await client.beta.chat.completions.parse({
+      model: "gpt-4o-mini",
       messages: [
         {
           "role": "system",
@@ -1235,7 +1246,8 @@ export const fetchSummaryContent = async (courseData) => {
           "role": "user",
           "content": prompt
         }
-      ]
+      ],
+      response_format: { type: "json_object" }
     });
     
     const content = response.choices[0].message.content;

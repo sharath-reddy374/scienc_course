@@ -240,6 +240,8 @@ const SubtopicContentSlide = React.memo(({
       loadingCompletedRef.current = true;
     }
   }, [questIndex, subtopicIndex, subtopicContent]);
+
+  
   
   // Function to safely call the API with debouncing - IMPROVED
   const debouncedApiCall = useCallback((params) => {
@@ -334,6 +336,8 @@ const SubtopicContentSlide = React.memo(({
       }, 100); // 100ms debounce delay
     });
   }, [sectionToDataMap, currentSection, __DEV__, courseId]);
+
+  
   
   // Function to preload all subtopic sections in the background
   const preloadAllSectionContent = useCallback(() => {
@@ -834,8 +838,16 @@ const SubtopicContentSlide = React.memo(({
   }, [subtopicContent]);
 
   // Format overview content
-  const formatOverview = useCallback((overviewText) => {
-    if (!overviewText) return null;
+// In SubtopicContentSlide.jsx, enhance the formatOverview function to handle both formats:
+
+// Replace the existing formatOverview function in SubtopicContentSlide.jsx with this version
+
+const formatOverview = useCallback((overviewText) => {
+  if (!overviewText) return null;
+  
+  // Method 1: Try splitting by ---SECTION--- delimiter
+  if (overviewText.includes('---SECTION---')) {
+    console.log("Using section delimiter method");
     const sections = overviewText.split("---SECTION---");
     return (
       <div className="space-y-6">
@@ -861,7 +873,79 @@ const SubtopicContentSlide = React.memo(({
         })}
       </div>
     );
-  }, []);
+  }
+  
+  // Method 2: Try matching section headers (INTRODUCTION:, BACKGROUND:, etc.)
+  const sectionRegex = /(INTRODUCTION|BACKGROUND|SIGNIFICANCE):(.+?)(?=(INTRODUCTION|BACKGROUND|SIGNIFICANCE):|$)/gs;
+  const sectionMatches = [...overviewText.matchAll(sectionRegex)];
+  
+  if (sectionMatches.length > 0) {
+    console.log("Using section header regex method");
+    return (
+      <div className="space-y-6">
+        {sectionMatches.map((match, index) => {
+          const title = match[1];
+          const content = match[2].trim();
+          const paragraphs = content.split(/(?<=\. )(?=[A-Z])/g);
+          return (
+            <div key={index} className="mb-4">
+              <h3 className="font-bold text-indigo-700 mb-2 pb-1 border-b border-indigo-100">{title}:</h3>
+              <div className="ml-0">
+                {paragraphs.map((paragraph, pIdx) => (
+                  <p key={pIdx} className="text-gray-700 mb-2">{paragraph.trim()}</p>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+  
+  // Method 3: Check for markdown headers
+  if (overviewText.includes('##')) {
+    console.log("Using markdown headers method");
+    const sections = overviewText.split(/(?=## )/);
+    return (
+      <div className="space-y-6">
+        {sections.filter(section => section.trim()).map((section, index) => {
+          const lines = section.split("\n");
+          const titleLine = lines[0];
+          const title = titleLine.replace(/^## /, '').trim();
+          const content = lines.slice(1).join("\n").trim();
+          
+          // Split content into paragraphs
+          const paragraphs = content.split(/\n\n+/);
+          
+          return (
+            <div key={index} className="mb-4">
+              <h3 className="font-bold text-indigo-700 mb-2 pb-1 border-b border-indigo-100">{title}</h3>
+              <div className="ml-0">
+                {paragraphs.map((paragraph, pIdx) => (
+                  <p key={pIdx} className="text-gray-700 mb-2">
+                    {paragraph.trim()}
+                  </p>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+  
+  // Method 4: Fallback - treat as a single block of text, at least make it readable
+  console.log("Using fallback method");
+  const paragraphs = overviewText.split(/\n\n+|\. (?=[A-Z])/g);
+  
+  return (
+    <div className="space-y-4">
+      {paragraphs.map((paragraph, index) => (
+        <p key={index} className="text-gray-700 mb-2">{paragraph.trim()}</p>
+      ))}
+    </div>
+  );
+}, []);
 
   // Render section refresh button
   const renderSectionRefreshButton = useCallback(() => {

@@ -12,7 +12,7 @@ const MemoryGameSlide = ({
   isFirst, 
   isLast 
 }) => {
-  // Set 16:9 aspect ratio while preserving all functionality
+  // Set 16:9 aspect ratio
   const containerStyle = {
     aspectRatio: '16/9',
     maxHeight: '100vh',
@@ -30,7 +30,6 @@ const MemoryGameSlide = ({
   const [gameComplete, setGameComplete] = useState(false);
   const [timer, setTimer] = useState(0);
   const [timerInterval, setTimerInterval] = useState(null);
-  const [animatingGame, setAnimatingGame] = useState(false);
   
   // Simple icon alternatives
   const icons = {
@@ -172,15 +171,6 @@ const MemoryGameSlide = ({
     setTimerInterval(interval);
   };
   
-  // End the game
-  const endGame = () => {
-    setGameComplete(true);
-    if (timerInterval) {
-      clearInterval(timerInterval);
-      setTimerInterval(null);
-    }
-  };
-  
   // Handle card click
   const handleCardClick = (index) => {
     // Don't allow clicking if game not started, already complete, or two cards already flipped
@@ -209,18 +199,14 @@ const MemoryGameSlide = ({
   
   // Generate new memory game
   const handleGenerateNewGame = () => {
-    setAnimatingGame(true);
-    setTimeout(() => {
-      onRefreshContent && onRefreshContent({ type: 'MEMORY' });
-      setCards([]);
-      setFlippedIndexes([]);
-      setMatchedPairs([]);
-      setMoves(0);
-      setGameStarted(false);
-      setGameComplete(false);
-      setTimer(0);
-      setAnimatingGame(false);
-    }, 600);
+    onRefreshContent && onRefreshContent({ type: 'MEMORY' });
+    setCards([]);
+    setFlippedIndexes([]);
+    setMatchedPairs([]);
+    setMoves(0);
+    setGameStarted(false);
+    setGameComplete(false);
+    setTimer(0);
   };
   
   // Format time display (mm:ss)
@@ -230,67 +216,35 @@ const MemoryGameSlide = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
   
-  // Animation variants
-  const cardVariants = {
-    hidden: { opacity: 0, y: 50 },
-    visible: { 
-      opacity: 1, 
-      y: 0,
-      transition: { 
-        type: "spring", 
-        stiffness: 100, 
-        damping: 15 
-      }
-    },
-    exit: { 
-      opacity: 0, 
-      y: -50,
-      transition: { 
-        ease: "easeInOut", 
-        duration: 0.3 
-      }
-    }
+  // Helper function to get appropriate grid columns based on number of cards
+  const getGridColumns = (cardCount) => {
+    if (cardCount <= 8) return 'grid-cols-2 sm:grid-cols-4';
+    if (cardCount <= 12) return 'grid-cols-3 sm:grid-cols-4';
+    if (cardCount <= 16) return 'grid-cols-4';
+    return 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6';
   };
 
-  const buttonVariants = {
-    hover: { 
-      scale: 1.05,
-      boxShadow: "0px 6px 15px rgba(0, 0, 0, 0.1)",
-      transition: { 
-        type: "spring", 
-        stiffness: 400, 
-        damping: 10 
-      }
-    },
-    tap: { scale: 0.95 }
-  };
-  
-  // Enhanced animation variants for memory cards
-  const memoryCardVariants = {
-    initial: { 
-      rotateY: 0,
-      boxShadow: "0px 3px 5px rgba(0, 0, 0, 0.1)"
-    },
-    flipped: { 
-      rotateY: 180,
-      boxShadow: "0px 5px 15px rgba(0, 0, 0, 0.1)",
-      transition: { 
-        type: "spring", 
-        stiffness: 300, 
-        damping: 15 
-      }
-    },
-    matched: {
-      scale: 1.03,
-      rotateY: 180,
-      boxShadow: "0px 0px 20px rgba(0, 128, 0, 0.5)",
-      transition: { 
-        duration: 0.5,
-        type: "spring",
-        stiffness: 300,
-        damping: 15
-      }
-    }
+  // Helper function for memory tips based on score
+  const getMemoryTip = (score) => {
+    const tips = [
+      "Try associating terms with visual images to improve recall.",
+      "Focus on a few cards at a time rather than trying to remember all at once.",
+      "Say the card content out loud when you see it to engage multiple senses.",
+      "Look for patterns or create stories between related terms.",
+      "Take brief breaks if you feel overwhelmed. A fresh perspective helps.",
+      "Group similar cards mentally to create organizational patterns.",
+      "Use the positions of cards as memory cues.",
+      "Pay attention to which cards other players flip (in multiplayer memory games)."
+    ];
+    
+    // Return a tip based on score range
+    if (score >= 90) return tips[0];
+    if (score >= 75) return tips[1];
+    if (score >= 60) return tips[2];
+    if (score >= 45) return tips[3];
+    if (score >= 30) return tips[4];
+    if (score >= 15) return tips[5];
+    return tips[6];
   };
 
   // If no content is available yet
@@ -299,19 +253,10 @@ const MemoryGameSlide = ({
       <SlideWrapper className="bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50">
         <div style={containerStyle} className="w-full flex items-center justify-center">
           <div className="flex flex-col items-center">
-            <motion.div 
-              animate={{ rotate: 360 }}
-              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-              className="rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mb-6"
-            ></motion.div>
-            <motion.p 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 1, 0.5, 1] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              className="text-blue-600 font-medium text-lg"
-            >
+            <div className="rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mb-6 animate-spin"></div>
+            <p className="text-blue-600 font-medium text-lg">
               {isRefreshing ? "Refreshing memory game content..." : "Preparing your memory challenge..."}
-            </motion.p>
+            </p>
           </div>
         </div>
       </SlideWrapper>
@@ -330,30 +275,30 @@ const MemoryGameSlide = ({
     
     return (
       <SlideWrapper className="bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50">
-        <div style={containerStyle} className="w-full flex flex-col p-6 md:p-8 relative">
+        <div style={containerStyle} className="w-full h-full flex flex-col p-6 md:p-8 relative">
           {/* Background decorative elements */}
           <div className="absolute -bottom-20 -right-20 w-72 h-72 bg-blue-400/10 rounded-full blur-3xl pointer-events-none"></div>
           <div className="absolute -top-20 -left-20 w-72 h-72 bg-indigo-400/10 rounded-full blur-3xl pointer-events-none"></div>
           
-          <motion.h1 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-700 bg-clip-text text-transparent mb-6 text-center"
-          >
-            Memory Game Complete!
-          </motion.h1>
-          
-          <div className="flex-1 flex items-center justify-center overflow-y-auto">
-            <motion.div
-              variants={cardVariants}
-              initial="hidden"
-              animate="visible"
-              className="w-full max-w-3xl mx-auto"
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="w-full max-w-7xl mx-auto flex flex-col h-full">
+            <div className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white py-3 px-6 rounded-t-xl">
+              <div className="flex justify-between items-center">
+                <h1 className="text-xl font-bold">Memory Game Complete!</h1>
+                <button
+                  onClick={handleGenerateNewGame}
+                  className="p-2 hover:bg-white/20 rounded-full transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex-1 bg-white overflow-y-auto px-6 py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 {/* Results summary card */}
-                <div className="bg-white rounded-xl shadow-md p-6 md:p-8 border border-indigo-100 text-center">
+                <div className="bg-white rounded-xl shadow-md p-6 border border-indigo-100 text-center">
                   <div className="text-6xl mb-6">
                     {scorePercentage >= 90 ? icons.celebration : 
                      scorePercentage >= 70 ? icons.trophy : icons.brain}
@@ -405,10 +350,7 @@ const MemoryGameSlide = ({
                   </div>
                   
                   <div className="flex flex-col space-y-3">
-                    <motion.button
-                      whileHover="hover"
-                      whileTap="tap"
-                      variants={buttonVariants}
+                    <button
                       onClick={handleReset}
                       className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-lg shadow-md font-medium"
                     >
@@ -416,12 +358,9 @@ const MemoryGameSlide = ({
                         <span>{icons.play}</span>
                         <span>Play Again</span>
                       </div>
-                    </motion.button>
+                    </button>
                     
-                    <motion.button
-                      whileHover="hover"
-                      whileTap="tap"
-                      variants={buttonVariants}
+                    <button
                       onClick={handleGenerateNewGame}
                       className="bg-white text-indigo-600 border border-indigo-200 px-6 py-3 rounded-lg shadow-md font-medium"
                     >
@@ -429,12 +368,12 @@ const MemoryGameSlide = ({
                         <span>{icons.refresh}</span>
                         <span>New Card Set</span>
                       </div>
-                    </motion.button>
+                    </button>
                   </div>
                 </div>
                 
                 {/* Game stats card */}
-                <div className="bg-white rounded-xl shadow-md p-6 md:p-8 border border-indigo-100">
+                <div className="bg-white rounded-xl shadow-md p-6 border border-indigo-100">
                   <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-700 to-indigo-600 bg-clip-text text-transparent mb-6 flex items-center">
                     <span className="mr-2">{icons.brain}</span>
                     <span>Memory Skills Analysis</span>
@@ -524,40 +463,34 @@ const MemoryGameSlide = ({
                   </div>
                 </div>
               </div>
-            </motion.div>
-          </div>
-          
-          {/* Navigation Buttons */}
-          <div className="flex justify-between mt-6">
-            <motion.button
-              whileHover="hover"
-              whileTap="tap"
-              variants={buttonVariants}
-              onClick={onPrevious}
-              disabled={isFirst}
-              className="bg-white text-indigo-600 px-6 py-3 rounded-full shadow-md
-                       hover:bg-indigo-50 transition-all border border-indigo-100 disabled:opacity-50"
-            >
-              <div className="flex items-center space-x-2">
-                <span>{icons.prev}</span>
-                <span>Previous</span>
-              </div>
-            </motion.button>
+            </div>
             
-            <motion.button
-              whileHover="hover"
-              whileTap="tap"
-              variants={buttonVariants}
-              onClick={onNext}
-              disabled={isLast}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-full shadow-md
+            {/* Navigation Buttons */}
+            <div className="flex justify-between bg-gray-50 py-3 px-6 rounded-b-xl border-t border-gray-200">
+              <button
+                onClick={onPrevious}
+                disabled={isFirst}
+                className="bg-white text-indigo-600 px-6 py-2 rounded-lg shadow-sm
+                       hover:bg-indigo-50 transition-all border border-indigo-100 disabled:opacity-50"
+              >
+                <div className="flex items-center space-x-2">
+                  <span>{icons.prev}</span>
+                  <span>Previous</span>
+                </div>
+              </button>
+              
+              <button
+                onClick={onNext}
+                disabled={isLast}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2 rounded-lg shadow-md
                        transition-all disabled:opacity-50"
-            >
-              <div className="flex items-center space-x-2">
-                <span>Next</span>
-                <span>{icons.next}</span>
-              </div>
-            </motion.button>
+              >
+                <div className="flex items-center space-x-2">
+                  <span>Next</span>
+                  <span>{icons.next}</span>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
       </SlideWrapper>
@@ -568,361 +501,313 @@ const MemoryGameSlide = ({
   if (!gameStarted) {
     return (
       <SlideWrapper className="bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50">
-        <div style={containerStyle} className="w-full flex flex-col p-6 md:p-8 relative">
+        <div style={containerStyle} className="w-full h-full flex flex-col p-6 md:p-8 relative">
           {/* Background decorative elements */}
           <div className="absolute -bottom-20 -right-20 w-72 h-72 bg-blue-400/10 rounded-full blur-3xl pointer-events-none"></div>
           <div className="absolute -top-20 -left-20 w-72 h-72 bg-indigo-400/10 rounded-full blur-3xl pointer-events-none"></div>
           
-          <motion.h1 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-700 bg-clip-text text-transparent mb-6 text-center"
-          >
-            {content.title || "Memory Matching Game"}
-          </motion.h1>
-          
-          <div className="flex-1 flex items-center justify-center">
-            <motion.div
-              variants={cardVariants}
-              initial="hidden"
-              animate="visible"
-              className="w-full max-w-2xl"
-            >
-              <div className="bg-white rounded-xl shadow-md p-6 md:p-8 border border-indigo-100 text-center">
-                <div className="text-7xl mb-6">{icons.brain}</div>
-                <h2 className="text-2xl md:text-3xl font-bold text-blue-700 mb-4">
-                  Memory Challenge
-                </h2>
-                <p className="text-blue-600 mb-6 text-lg">{content.description || "Match each term with its correct definition to reinforce your learning."}</p>
-                
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-100 mb-8">
-                  <h3 className="font-bold text-blue-700 mb-3 text-xl">How to Play</h3>
-                  <ul className="text-left space-y-3">
-                    <motion.li 
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.2 }}
-                      className="flex items-start"
-                    >
-                      <span className="flex-shrink-0 flex items-center justify-center bg-blue-100 text-blue-600 rounded-full w-6 h-6 mr-3 mt-0.5">
-                        1
-                      </span>
-                      <span>Click cards to flip them over and reveal what's underneath</span>
-                    </motion.li>
-                    <motion.li 
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.3 }}
-                      className="flex items-start"
-                    >
-                      <span className="flex-shrink-0 flex items-center justify-center bg-blue-100 text-blue-600 rounded-full w-6 h-6 mr-3 mt-0.5">
-                        2
-                      </span>
-                      <span>Try to find matching pairs of cards (terms with their definitions)</span>
-                    </motion.li>
-                    <motion.li 
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.4 }}
-                      className="flex items-start"
-                    >
-                      <span className="flex-shrink-0 flex items-center justify-center bg-blue-100 text-blue-600 rounded-full w-6 h-6 mr-3 mt-0.5">
-                        3
-                      </span>
-                      <span>Match all pairs with the fewest moves to get the highest score</span>
-                    </motion.li>
-                  </ul>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <div className="text-blue-700 font-medium">
-                    {cardPairs.length} pairs to match
-                  </div>
-                  <div className="text-blue-700 font-medium">
-                    Difficulty: {cardPairs.length <= 4 ? 'Easy' : cardPairs.length <= 6 ? 'Medium' : 'Hard'}
-                  </div>
-                </div>
-                
-                <motion.button
-                  whileHover="hover"
-                  whileTap="tap"
-                  variants={buttonVariants}
-                  onClick={startGame}
-                  className="mt-8 w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-4 rounded-lg shadow-lg text-xl font-bold"
+          <div className="w-full max-w-7xl mx-auto flex flex-col h-full">
+            <div className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white py-3 px-6 rounded-t-xl">
+              <div className="flex justify-between items-center">
+                <h1 className="text-xl font-bold">{content.title || "Memory Matching Game"}</h1>
+                <button
+                  onClick={handleGenerateNewGame}
+                  className="p-2 hover:bg-white/20 rounded-full transition-colors"
                 >
-                  <div className="flex items-center justify-center space-x-3">
-                    <span>{icons.play}</span>
-                    <span>Start Game</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex-1 bg-white overflow-y-auto p-6">
+              <div className="max-w-2xl mx-auto">
+                <div className="bg-white rounded-xl shadow-md p-6 border border-indigo-100 text-center">
+                  <div className="text-7xl mb-6">{icons.brain}</div>
+                  <h2 className="text-2xl md:text-3xl font-bold text-blue-700 mb-4">
+                    Memory Challenge
+                  </h2>
+                  <p className="text-blue-600 mb-6 text-lg">{content.description || "Match each term with its correct definition to reinforce your learning."}</p>
+                  
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-100 mb-8 text-left">
+                    <h3 className="font-bold text-blue-700 mb-3 text-xl">How to Play</h3>
+                    <ul className="space-y-3">
+                      <li className="flex items-start">
+                        <span className="flex-shrink-0 flex items-center justify-center bg-blue-100 text-blue-600 rounded-full w-6 h-6 mr-3 mt-0.5">
+                          1
+                        </span>
+                        <span>Click cards to flip them over and reveal what's underneath</span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="flex-shrink-0 flex items-center justify-center bg-blue-100 text-blue-600 rounded-full w-6 h-6 mr-3 mt-0.5">
+                          2
+                        </span>
+                        <span>Try to find matching pairs of cards (terms with their definitions)</span>
+                      </li>
+                      <li className="flex items-start">
+                        <span className="flex-shrink-0 flex items-center justify-center bg-blue-100 text-blue-600 rounded-full w-6 h-6 mr-3 mt-0.5">
+                          3
+                        </span>
+                        <span>Match all pairs with the fewest moves to get the highest score</span>
+                      </li>
+                    </ul>
                   </div>
-                </motion.button>
+                  
+                  <div className="flex justify-between items-center">
+                    <div className="text-blue-700 font-medium">
+                      {cardPairs.length} pairs to match
+                    </div>
+                    <div className="text-blue-700 font-medium">
+                      Difficulty: {cardPairs.length <= 4 ? 'Easy' : cardPairs.length <= 6 ? 'Medium' : 'Hard'}
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={startGame}
+                    className="mt-8 w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-4 rounded-lg shadow-lg text-xl font-bold"
+                  >
+                    <div className="flex items-center justify-center space-x-3">
+                      <span>{icons.play}</span>
+                      <span>Start Game</span>
+                    </div>
+                  </button>
+                </div>
               </div>
-            </motion.div>
-          </div>
-          
-          {/* Navigation Buttons */}
-          <div className="flex justify-between mt-6">
-            <motion.button
-              whileHover="hover"
-              whileTap="tap"
-              variants={buttonVariants}
-              onClick={onPrevious}
-              disabled={isFirst}
-              className="bg-white text-indigo-600 px-6 py-3 rounded-full shadow-md
+            </div>
+            
+            {/* Navigation Buttons */}
+            <div className="flex justify-between bg-gray-50 py-3 px-6 rounded-b-xl border-t border-gray-200">
+              <button
+                onClick={onPrevious}
+                disabled={isFirst}
+                className="bg-white text-indigo-600 px-6 py-2 rounded-lg shadow-sm
                        hover:bg-indigo-50 transition-all border border-indigo-100 disabled:opacity-50"
-            >
-              <div className="flex items-center space-x-2">
-                <span>{icons.prev}</span>
-                <span>Previous</span>
-              </div>
-            </motion.button>
-            
-            <motion.button
-              whileHover="hover"
-              whileTap="tap"
-              variants={buttonVariants}
-              onClick={handleGenerateNewGame}
-              className="bg-white text-indigo-600 px-6 py-3 rounded-full shadow-md border border-indigo-200
+              >
+                <div className="flex items-center space-x-2">
+                  <span>{icons.prev}</span>
+                  <span>Previous</span>
+                </div>
+              </button>
+              
+              <button
+                onClick={handleGenerateNewGame}
+                className="bg-white text-indigo-600 px-6 py-2 rounded-lg shadow-sm border border-indigo-200
                          hover:bg-indigo-50 transition-all"
-            >
-              <div className="flex items-center space-x-2">
-                <span>{icons.refresh}</span>
-                <span>New Cards</span>
-              </div>
-              </motion.button>
-            
-            <motion.button
-              whileHover="hover"
-              whileTap="tap"
-              variants={buttonVariants}
-              onClick={onNext}
-              disabled={isLast}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-full shadow-md
+              >
+                <div className="flex items-center space-x-2">
+                  <span>{icons.refresh}</span>
+                  <span>New Cards</span>
+                </div>
+              </button>
+              
+              <button
+                onClick={onNext}
+                disabled={isLast}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2 rounded-lg shadow-md
                        transition-all disabled:opacity-50"
-            >
-              <div className="flex items-center space-x-2">
-                <span>Next</span>
-                <span>{icons.next}</span>
-              </div>
-            </motion.button>
+              >
+                <div className="flex items-center space-x-2">
+                  <span>Next</span>
+                  <span>{icons.next}</span>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
       </SlideWrapper>
-    );
-  }
-  
-  // Main game interface while playing
-  return (
-    <SlideWrapper className="bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50">
-      <div style={containerStyle} className="w-full flex flex-col p-6 md:p-8 relative">
-        {/* Background decorative elements */}
-        <div className="absolute -bottom-20 -right-20 w-72 h-72 bg-blue-400/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute -top-20 -left-20 w-72 h-72 bg-indigo-400/10 rounded-full blur-3xl pointer-events-none"></div>
+         );
+        }
         
-        {/* Refreshing overlay */}
-        {isRefreshing && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 backdrop-blur-sm z-10"
-          >
-            <div className="flex flex-col items-center">
-              <div className="animate-spin rounded-full h-16 w-16 border-4 border-b-transparent border-blue-600"></div>
-              <p className="mt-4 text-blue-600 font-medium">Loading new memory game...</p>
-            </div>
-          </motion.div>
-        )}
-        
-        <motion.h1 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-700 bg-clip-text text-transparent mb-6 text-center"
-        >
-          {content.title || "Memory Matching Game"}
-        </motion.h1>
-        
-        {/* Game stats bar */}
-        <div className="bg-white rounded-xl shadow-md p-4 mb-6 border border-indigo-100">
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center">
-              <div className="text-sm text-blue-600 mb-1">Time</div>
-              <div className="text-xl font-bold text-blue-700">{formatTime(timer)}</div>
-            </div>
-            
-            <div className="text-center">
-              <div className="text-sm text-blue-600 mb-1">Moves</div>
-              <div className="text-xl font-bold text-blue-700">{moves}</div>
-            </div>
-            
-            <div className="text-center">
-              <div className="text-sm text-blue-600 mb-1">Matched</div>
-              <div className="text-xl font-bold text-blue-700">{matchedPairs.length} / {cardPairs.length}</div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto">
-          {/* Memory card grid */}
-          <div className={`grid ${getGridColumns(cards.length)} gap-3 sm:gap-4 max-w-4xl mx-auto ${animatingGame ? 'animate-pulse' : ''}`}>
-            <AnimatePresence>
-              {cards.map((card, index) => {
-                const isFlipped = flippedIndexes.includes(index);
-                const isMatched = matchedPairs.includes(card.pairId);
-                
-                return (
-                  <motion.div
-                    key={card.id}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ 
-                      opacity: 1, 
-                      scale: 1,
-                      transition: { 
-                        delay: index * 0.05,
-                        duration: 0.3 
-                      }
-                    }}
-                    className="aspect-square relative"
-                    onClick={() => handleCardClick(index)}
-                  >
-                    <motion.div
-                      className="w-full h-full rounded-lg relative preserve-3d cursor-pointer"
-                      variants={memoryCardVariants}
-                      initial="initial"
-                      animate={isMatched ? "matched" : isFlipped ? "flipped" : "initial"}
+        // Main game interface while playing
+        return (
+          <SlideWrapper className="bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50">
+            <div style={containerStyle} className="w-full h-full flex flex-col p-6 md:p-8 relative">
+              {/* Background decorative elements */}
+              <div className="absolute -bottom-20 -right-20 w-72 h-72 bg-blue-400/10 rounded-full blur-3xl pointer-events-none"></div>
+              <div className="absolute -top-20 -left-20 w-72 h-72 bg-indigo-400/10 rounded-full blur-3xl pointer-events-none"></div>
+              
+              {/* Refreshing overlay */}
+              {isRefreshing && (
+                <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 backdrop-blur-sm z-10">
+                  <div className="flex flex-col items-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-4 border-b-transparent border-blue-600"></div>
+                    <p className="mt-4 text-blue-600 font-medium">Loading new memory game...</p>
+                  </div>
+                </div>
+              )}
+              
+              <div className="w-full max-w-7xl mx-auto flex flex-col h-full">
+                {/* Header */}
+                <div className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white py-3 px-6 rounded-t-xl">
+                  <div className="flex justify-between items-center">
+                    <h1 className="text-xl font-bold">{content.title || "Memory Matching Game"}</h1>
+                    <button
+                      onClick={handleGenerateNewGame}
+                      className="p-2 hover:bg-white/20 rounded-full transition-colors"
                     >
-                      {/* Card front (hidden) */}
-                      <div className="absolute inset-0 backface-hidden">
-                        <div className="w-full h-full rounded-lg shadow-md overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center p-2 border-2 border-white">
-                          <div className="text-white text-3xl">{icons.magic}</div>
-                        </div>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Game stats bar */}
+                <div className="bg-white p-4 border-b border-indigo-100">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center space-x-6">
+                      <div className="text-center">
+                        <div className="text-sm text-blue-600 mb-1">Time</div>
+                        <div className="text-xl font-bold text-blue-700">{formatTime(timer)}</div>
                       </div>
                       
-                      {/* Card back (content) */}
-                      <div className="absolute inset-0 backface-hidden rotate-y-180">
-                        <div className={`w-full h-full rounded-lg shadow-md overflow-hidden p-2 flex items-center justify-center text-center ${
-                          isMatched 
-                            ? (card.type === 'term' 
-                                ? 'bg-green-100 text-green-800 border-2 border-green-400' 
-                                : 'bg-green-100 text-green-800 border-2 border-green-400')
-                            : (card.type === 'term' 
-                                ? 'bg-blue-100 text-blue-800 border-2 border-blue-300' 
-                                : 'bg-indigo-100 text-indigo-800 border-2 border-indigo-300')
-                        }`}>
-                          <div className={`text-sm font-medium overflow-auto ${isMatched ? 'text-green-800' : ''}`}>
-                            {card.content}
-                            {isMatched && (
-                              <div className="text-green-600 text-lg mt-1">
-                                {icons.correct}
-                              </div>
-                            )}
-                          </div>
-                        </div>
+                      <div className="text-center">
+                        <div className="text-sm text-blue-600 mb-1">Moves</div>
+                        <div className="text-xl font-bold text-blue-700">{moves}</div>
                       </div>
-                    </motion.div>
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
-          </div>
-        </div>
-        
-        {/* Game controls */}
-        <div className="mt-6 flex justify-center space-x-4">
-          <motion.button
-            whileHover="hover"
-            whileTap="tap"
-            variants={buttonVariants}
-            onClick={handleReset}
-            className="px-4 py-2 bg-white text-indigo-600 rounded-lg shadow-md border border-indigo-200"
-          >
-            <div className="flex items-center space-x-2">
-              <span>{icons.restart}</span>
-              <span>Restart</span>
+                    </div>
+                    
+                    <div className="text-center">
+                      <div className="text-sm text-blue-600 mb-1">Matched</div>
+                      <div className="text-xl font-bold text-blue-700">{matchedPairs.length} / {cardPairs.length}</div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Card grid */}
+                <div className="flex-1 bg-white p-6 overflow-auto">
+                  <div className={`grid ${getGridColumns(cards.length)} gap-3 sm:gap-4 mx-auto h-full`}>
+                    <AnimatePresence>
+                      {cards.map((card, index) => {
+                        const isFlipped = flippedIndexes.includes(index);
+                        const isMatched = matchedPairs.includes(card.pairId);
+                        
+                        return (
+                          <motion.div
+                            key={card.id}
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ 
+                              opacity: 1, 
+                              scale: 1,
+                              transition: { 
+                                delay: index * 0.05,
+                                duration: 0.3 
+                              }
+                            }}
+                            className="aspect-square relative"
+                            onClick={() => handleCardClick(index)}
+                          >
+                            <div 
+                              className={`w-full h-full rounded-lg relative preserve-3d cursor-pointer ${
+                                isMatched 
+                                  ? 'shadow-md transform scale-103' 
+                                  : isFlipped 
+                                    ? 'shadow-md' 
+                                    : ''
+                              }`}
+                              style={{
+                                transformStyle: 'preserve-3d',
+                                transform: isFlipped || isMatched ? 'rotateY(180deg)' : 'rotateY(0)'
+                              }}
+                            >
+                              {/* Card front (hidden) */}
+                              <div 
+                                className="absolute inset-0 backface-hidden"
+                                style={{ backfaceVisibility: 'hidden' }}
+                              >
+                                <div className="w-full h-full rounded-lg shadow-md overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center p-2 border-2 border-white">
+                                  <div className="text-white text-3xl">{icons.magic}</div>
+                                </div>
+                              </div>
+                              
+                              {/* Card back (content) */}
+                              <div 
+                                className="absolute inset-0 backface-hidden"
+                                style={{ 
+                                  backfaceVisibility: 'hidden',
+                                  transform: 'rotateY(180deg)'
+                                }}
+                              >
+                                <div className={`w-full h-full rounded-lg shadow-md overflow-hidden p-2 flex items-center justify-center text-center ${
+                                  isMatched 
+                                    ? (card.type === 'term' 
+                                        ? 'bg-green-100 text-green-800 border-2 border-green-400' 
+                                        : 'bg-green-100 text-green-800 border-2 border-green-400')
+                                    : (card.type === 'term' 
+                                        ? 'bg-blue-100 text-blue-800 border-2 border-blue-300' 
+                                        : 'bg-indigo-100 text-indigo-800 border-2 border-indigo-300')
+                                }`}>
+                                  <div className={`text-sm font-medium overflow-auto ${isMatched ? 'text-green-800' : ''}`}>
+                                    {card.content}
+                                    {isMatched && (
+                                      <div className="text-green-600 text-lg mt-1">
+                                        {icons.correct}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </AnimatePresence>
+                  </div>
+                </div>
+                
+                {/* Game controls */}
+                <div className="flex justify-center space-x-4 bg-gray-50 py-3 px-6 border-t border-gray-200">
+                  <button
+                    onClick={handleReset}
+                    className="px-4 py-2 bg-white text-indigo-600 rounded-lg shadow-sm border border-indigo-200 hover:bg-indigo-50"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <span>{icons.restart}</span>
+                      <span>Restart</span>
+                    </div>
+                  </button>
+                  
+                  <button
+                    onClick={handleGenerateNewGame}
+                    className="px-4 py-2 bg-white text-indigo-600 rounded-lg shadow-sm border border-indigo-200 hover:bg-indigo-50"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <span>{icons.refresh}</span>
+                      <span>New Cards</span>
+                    </div>
+                  </button>
+                  
+                  <div className="flex-1"></div>
+                  
+                  <button
+                    onClick={onPrevious}
+                    disabled={isFirst}
+                    className="bg-white text-indigo-600 px-6 py-2 rounded-lg shadow-sm
+                           hover:bg-indigo-50 transition-all border border-indigo-100 disabled:opacity-50"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <span>{icons.prev}</span>
+                      <span>Previous</span>
+                    </div>
+                  </button>
+                  
+                  <button
+                    onClick={onNext}
+                    disabled={isLast}
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2 rounded-lg shadow-md
+                           transition-all disabled:opacity-50"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <span>Next</span>
+                      <span>{icons.next}</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
             </div>
-          </motion.button>
-          
-          <motion.button
-            whileHover="hover"
-            whileTap="tap"
-            variants={buttonVariants}
-            onClick={handleGenerateNewGame}
-            className="px-4 py-2 bg-white text-indigo-600 rounded-lg shadow-md border border-indigo-200"
-          >
-            <div className="flex items-center space-x-2">
-              <span>{icons.refresh}</span>
-              <span>New Cards</span>
-            </div>
-          </motion.button>
-        </div>
-        
-        {/* Navigation Buttons */}
-        <div className="flex justify-between mt-6">
-          <motion.button
-            whileHover="hover"
-            whileTap="tap"
-            variants={buttonVariants}
-            onClick={onPrevious}
-            disabled={isFirst}
-            className="bg-white text-indigo-600 px-6 py-3 rounded-full shadow-md
-                     hover:bg-indigo-50 transition-all border border-indigo-100 disabled:opacity-50"
-          >
-            <div className="flex items-center space-x-2">
-              <span>{icons.prev}</span>
-              <span>Previous</span>
-            </div>
-          </motion.button>
-          
-          <motion.button
-            whileHover="hover"
-            whileTap="tap"
-            variants={buttonVariants}
-            onClick={onNext}
-            disabled={isLast}
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-full shadow-md
-                     transition-all disabled:opacity-50"
-          >
-            <div className="flex items-center space-x-2">
-              <span>Next</span>
-              <span>{icons.next}</span>
-            </div>
-          </motion.button>
-        </div>
-      </div>
-    </SlideWrapper>
-  );
-};
-
-// Helper function to get appropriate grid columns based on number of cards
-const getGridColumns = (cardCount) => {
-  if (cardCount <= 8) return 'grid-cols-2 sm:grid-cols-4';
-  if (cardCount <= 12) return 'grid-cols-3 sm:grid-cols-4';
-  if (cardCount <= 16) return 'grid-cols-4';
-  return 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6';
-};
-
-// Helper function for memory tips based on score
-const getMemoryTip = (score) => {
-  const tips = [
-    "Try associating terms with visual images to improve recall.",
-    "Focus on a few cards at a time rather than trying to remember all at once.",
-    "Say the card content out loud when you see it to engage multiple senses.",
-    "Look for patterns or create stories between related terms.",
-    "Take brief breaks if you feel overwhelmed. A fresh perspective helps.",
-    "Group similar cards mentally to create organizational patterns.",
-    "Use the positions of cards as memory cues.",
-    "Pay attention to which cards other players flip (in multiplayer memory games)."
-  ];
-  
-  // Return a tip based on score range
-  if (score >= 90) return tips[0];
-  if (score >= 75) return tips[1];
-  if (score >= 60) return tips[2];
-  if (score >= 45) return tips[3];
-  if (score >= 30) return tips[4];
-  if (score >= 15) return tips[5];
-  return tips[6];
-};
-
-export default MemoryGameSlide;
+          </SlideWrapper>
+        );
+      };
+      
+      export default MemoryGameSlide;

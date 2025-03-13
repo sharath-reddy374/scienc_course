@@ -29,15 +29,25 @@ const CourseSummarySlide = ({
     );
   }
   
+  // Generate default learning points if none provided
+  const generateDefaultLearnings = (quests) => {
+    return quests.map((quest, idx) => {
+      const objective = quest.objectives && quest.objectives.length > 0 
+        ? quest.objectives[0]
+        : null;
+      
+      return {
+        title: quest.title,
+        description: objective || `Understanding the core concepts of ${quest.title}`
+      };
+    });
+  };
+
   return (
     <SlideWrapper className="bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50">
       <div className="w-full h-full flex items-center justify-center px-2">
         {/* Main container with 16:9 aspect ratio */}
-        <div className="w-full max-w-7xl aspect-video bg-white/90 backdrop-blur-sm rounded-xl shadow-xl overflow-hidden flex flex-col">
-          {/* Background decorative elements */}
-          <div className="absolute bottom-0 right-0 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl pointer-events-none"></div>
-          <div className="absolute top-0 left-0 w-96 h-96 bg-indigo-400/10 rounded-full blur-3xl pointer-events-none"></div>
-          
+        <div className="w-full max-w-7xl aspect-video bg-white rounded-xl shadow-lg overflow-hidden flex flex-col">
           {/* Header */}
           <div className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white py-3 px-6">
             <div className="flex justify-between items-center">
@@ -55,41 +65,32 @@ const CourseSummarySlide = ({
           </div>
           
           {/* Course title */}
-          <div className="bg-gradient-to-br from-indigo-50 to-blue-50 py-4 px-6 border-b border-indigo-100 shadow-sm">
-            <h2 className="text-2xl md:text-3xl font-bold text-center bg-gradient-to-r from-indigo-700 via-blue-600 to-indigo-700 bg-clip-text text-transparent">
+          <div className="bg-indigo-50 py-4 px-6 border-b border-indigo-100">
+            <h2 className="text-2xl md:text-3xl font-bold text-center text-indigo-700">
               {courseTitle}
             </h2>
             <p className="text-center text-gray-600 mt-2">
               Congratulations on completing this course!
             </p>
-            <div className="flex justify-center mt-2">
-              <div className="bg-indigo-100 text-indigo-700 rounded-full px-4 py-1 text-sm font-medium flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-              </div>
-            </div>
           </div>
           
-          {/* Main content area - designed for narration */}
+          {/* Main content area - scrollable */}
           <div className="flex-1 overflow-auto p-6">
-            {/* Course overview - prime spot for narration */}
+            {/* Course overview */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 mb-6">
               <h3 className="text-xl font-bold text-indigo-700 mb-3">Course Overview</h3>
-              <p className="text-gray-700 leading-relaxed">
-                {overview}
-              </p>
+              <p className="text-gray-700 leading-relaxed">{overview}</p>
             </div>
             
-            {/* Key accomplishments - visual with good narration points */}
+            {/* Key accomplishments */}
             <div className="mb-6">
               <h3 className="text-xl font-bold text-indigo-700 mb-3">Your Accomplishments</h3>
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gradient-to-br from-indigo-600 to-blue-600 rounded-lg shadow-md p-5 text-white">
+                <div className="bg-indigo-600 rounded-lg shadow-sm p-5 text-white">
                   <div className="text-3xl font-bold">{quests.length}</div>
                   <div className="text-lg">Quests Completed</div>
                 </div>
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg shadow-md p-5 text-white">
+                <div className="bg-blue-600 rounded-lg shadow-sm p-5 text-white">
                   <div className="text-3xl font-bold">
                     {quests.reduce((count, quest) => count + (quest.objectives?.length || 0), 0)}
                   </div>
@@ -98,17 +99,17 @@ const CourseSummarySlide = ({
               </div>
             </div>
             
-            {/* Key concepts - sequential for easy narration */}
+            {/* Key concepts */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 mb-6">
               <h3 className="text-xl font-bold text-indigo-700 mb-3">Key Concepts You've Mastered</h3>
               <div className="space-y-3">
                 {(keyLearnings.length > 0 ? keyLearnings : generateDefaultLearnings(quests)).map((point, idx) => (
                   <div 
                     key={idx} 
-                    className="bg-gradient-to-r from-indigo-50 to-blue-50 p-3 rounded-lg border-l-4 border-indigo-500 shadow-sm"
+                    className="bg-indigo-50 p-3 rounded-lg border-l-4 border-indigo-500"
                   >
                     <h4 className="font-semibold text-indigo-800 flex items-center">
-                      <span className="w-7 h-7 rounded-full bg-indigo-600 text-white flex items-center justify-center mr-3 shadow-sm">
+                      <span className="w-7 h-7 rounded-full bg-indigo-600 text-white flex items-center justify-center mr-3">
                         {idx + 1}
                       </span>
                       {typeof point === 'object' ? point.title : point}
@@ -123,8 +124,8 @@ const CourseSummarySlide = ({
               </div>
             </div>
             
-            {/* Journey summary - perfect for concluding narration */}
-            <div className="bg-gradient-to-r from-indigo-600 to-blue-600 rounded-lg shadow-md p-5 text-white">
+            {/* Journey summary */}
+            <div className="bg-indigo-600 rounded-lg shadow-sm p-5 text-white">
               <h3 className="text-xl font-bold mb-3">Your Learning Journey</h3>
               <p className="mb-3">
                 Throughout this course, you've explored {quests.length} key areas:
@@ -168,20 +169,6 @@ const CourseSummarySlide = ({
       </div>
     </SlideWrapper>
   );
-};
-
-// Helper function to generate default learning points
-const generateDefaultLearnings = (quests) => {
-  return quests.map((quest, idx) => {
-    const objective = quest.objectives && quest.objectives.length > 0 
-      ? quest.objectives[0]
-      : null;
-    
-    return {
-      title: quest.title,
-      description: objective || `Understanding the core concepts of ${quest.title}`
-    };
-  });
 };
 
 export default CourseSummarySlide;
