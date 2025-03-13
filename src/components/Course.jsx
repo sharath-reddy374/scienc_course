@@ -629,13 +629,14 @@ const Course = () => {
         // Save to database
         if (courseData?.id) {
           try {
+            console.log(`Saving complete subtopic content to database for course ${courseData?.id}:`, updatedSubtopicContent);
             await DatabaseService.storeSubtopicContent(
-              courseData.id, 
+              courseData?.id, 
               questIndex, 
               subtopicIndex, 
               updatedSubtopicContent
             );
-            console.log(`Saved subtopic content to database`);
+            console.log(`Successfully saved complete subtopic content to database`);
           } catch (err) {
             console.error(`Error saving subtopic content to database:`, err);
           }

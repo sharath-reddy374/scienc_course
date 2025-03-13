@@ -1,5 +1,5 @@
 import { database } from '../firebase';
-import { ref, set, get, child } from "firebase/database";
+import { ref, set, get, child, update, runTransaction } from "firebase/database";
 
 // Database service for Realtime Database
 const DatabaseService = {
@@ -36,24 +36,41 @@ const DatabaseService = {
     }
   },
 
-  // Store subtopic content
-  async storeSubtopicContent(courseId, questIndex, subtopicIndex, content) {
+// Store subtopic content
+async storeSubtopicContent(courseId, questIndex, subtopicIndex, content) {
+  try {
+    // Get existing content first to ensure we don't lose any sections
+    let existingContent = null;
     try {
-      const key = `quest_${questIndex}_subtopic_${subtopicIndex}`;
-      await set(ref(database, `courses/${courseId}/subtopics/${key}`), {
-        content,
-        courseId,
-        questIndex,
-        subtopicIndex,
-        updatedAt: new Date().toISOString()
-      });
-      console.log(`Stored subtopic ${questIndex}-${subtopicIndex} content for course ${courseId} in database`);
-      return true;
-    } catch (error) {
-      console.error(`Error storing subtopic content for course ${courseId}:`, error);
-      return false;
+      existingContent = await this.getSubtopicContent(courseId, questIndex, subtopicIndex);
+    } catch (err) {
+      console.log(`No existing content found, creating new entry`);
     }
-  },
+    
+    // Create merged content - ensures we keep all sections
+    const mergedContent = {
+      ...(existingContent || {}),
+      ...content,
+      // Make sure title is preserved
+      title: content.title || (existingContent && existingContent.title)
+    };
+    
+    const key = `quest_${questIndex}_subtopic_${subtopicIndex}`;
+    await set(ref(database, `courses/${courseId}/subtopics/${key}`), {
+      content: mergedContent,
+      courseId,
+      questIndex,
+      subtopicIndex,
+      updatedAt: new Date().toISOString()
+    });
+    
+    console.log(`Stored subtopic ${questIndex}-${subtopicIndex} content for course ${courseId} in database`);
+    return true;
+  } catch (error) {
+    console.error(`Error storing subtopic content for course ${courseId}:`, error);
+    return false;
+  }
+},
 
   // Get subtopic content
   async getSubtopicContent(courseId, questIndex, subtopicIndex) {
@@ -73,25 +90,44 @@ const DatabaseService = {
     }
   },
 
-  // Store specific section of subtopic content
+  // Store a specific section of subtopic content using atomic update
   async storeSubtopicSection(courseId, questIndex, subtopicIndex, sectionType, sectionContent) {
     try {
-      // First try to get existing content
-      const existingContent = await this.getSubtopicContent(courseId, questIndex, subtopicIndex) || {};
+      const key = `quest_${questIndex}_subtopic_${subtopicIndex}`;
+      // Reference to the "content" node inside the subtopic document
+      const contentRef = ref(database, `courses/${courseId}/subtopics/${key}/content`);
       
-      // Update with new section content
-      const updatedContent = {
-        ...existingContent,
-        [sectionType]: sectionContent
-      };
+      // Atomically update only the specific section
+      await update(contentRef, { [sectionType]: sectionContent });
       
-      // Store the updated content
-      await this.storeSubtopicContent(courseId, questIndex, subtopicIndex, updatedContent);
-      
-      console.log(`Stored ${sectionType} section for subtopic ${questIndex}-${subtopicIndex} in course ${courseId}`);
-      return updatedContent;
+      console.log(`Updated ${sectionType} section for subtopic ${questIndex}-${subtopicIndex} in course ${courseId}`);
+      return true;
     } catch (error) {
-      console.error(`Error storing subtopic section for course ${courseId}:`, error);
+      console.error(`Error updating subtopic section for course ${courseId}:`, error);
+      return null;
+    }
+  },
+
+  // Optional: Alternatively, update a subtopic section using a transaction
+  async storeSubtopicSectionTransaction(courseId, questIndex, subtopicIndex, sectionType, sectionContent) {
+    try {
+      const key = `quest_${questIndex}_subtopic_${subtopicIndex}`;
+      const contentRef = ref(database, `courses/${courseId}/subtopics/${key}/content`);
+      
+      await runTransaction(contentRef, (currentData) => {
+        if (currentData === null) {
+          currentData = {};
+        }
+        return {
+          ...currentData,
+          [sectionType]: sectionContent
+        };
+      });
+      
+      console.log(`Transaction updated ${sectionType} section for subtopic ${questIndex}-${subtopicIndex} in course ${courseId}`);
+      return true;
+    } catch (error) {
+      console.error(`Error in transaction updating subtopic section for course ${courseId}:`, error);
       return null;
     }
   },
@@ -115,12 +151,6 @@ const DatabaseService = {
     }
   },
 
-
-
-
-
-  
-  
   // Get course data by ID
   async getCourseData(courseId) {
     try {
@@ -138,6 +168,5 @@ const DatabaseService = {
     }
   }
 };
-
 
 export default DatabaseService;

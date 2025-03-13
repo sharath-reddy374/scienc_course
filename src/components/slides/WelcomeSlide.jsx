@@ -1,57 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SlideWrapper from '../common/SlideWrapper';
-
-// Loading component as a separate function component
-const LoadingDisplay = () => {
-  return (
-    <SlideWrapper className="bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="w-full h-full flex items-center justify-center">
-        <div className="flex flex-col items-center">
-          <div className="relative">
-            <motion.div 
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-              className="rounded-full h-20 w-20 border-4 border-blue-600 border-t-transparent mb-8"
-            ></motion.div>
-            <motion.div 
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute inset-0 rounded-full border-4 border-blue-300 border-opacity-50"
-            ></motion.div>
-          </div>
-          <motion.div className="flex flex-col items-center">
-            <motion.p 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.5 }}
-              className="text-blue-700 font-semibold text-xl mb-2"
-            >
-              Preparing your course
-            </motion.p>
-            <motion.div 
-              animate={{ opacity: [0.4, 1, 0.4] }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-              className="flex space-x-2"
-            >
-              <span className="h-2 w-2 bg-blue-600 rounded-full"></span>
-              <motion.span 
-                animate={{ opacity: [0.4, 1, 0.4] }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
-                className="h-2 w-2 bg-blue-600 rounded-full"
-              ></motion.span>
-              <motion.span 
-                animate={{ opacity: [0.4, 1, 0.4] }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
-                className="h-2 w-2 bg-blue-600 rounded-full"
-              ></motion.span>
-            </motion.div>
-          </motion.div>
-        </div>
-      </div>
-    </SlideWrapper>
-  );
-};
+import FreshLoadingScreen from '../LoadingSpinner';
 
 // Error display component for when content fails to load
 const ErrorDisplay = ({ onRetry }) => {
@@ -177,9 +127,9 @@ const WelcomeSlide = ({
     return <ErrorDisplay onRetry={handleRetry} />;
   }
 
-  // Loading state - render separate component
+  // Loading state - use FreshLoadingScreen instead of LoadingDisplay
   if (!content) {
-    return <LoadingDisplay />;
+    return <FreshLoadingScreen />;
   }
 
   // Validate content structure and provide fallbacks for missing properties
