@@ -13,7 +13,8 @@ const DetailedQuestSlide = ({
   onSubtopicSelect,
   isRefreshing,
   onNextQuest,
-  questSequence
+  questSequence,
+  onExitAdventure
 }) => {
   const [isReady, setIsReady] = useState(false);
   const [showTopics, setShowTopics] = useState(false);
@@ -22,9 +23,14 @@ const DetailedQuestSlide = ({
     // Animation sequence effect
     const timer = setTimeout(() => {
       setIsReady(true);
+      
+      // If in adventure mode, automatically show topics
+      if (questSequence?.started && questSequence?.mode === 'adventure' && !showTopics) {
+        setShowTopics(true);
+      }
     }, 300);
     return () => clearTimeout(timer);
-  }, []);
+  }, [questSequence]);
 
   // Handle navigation
   const handleViewTopics = () => {
@@ -37,8 +43,31 @@ const DetailedQuestSlide = ({
 
   const handleSubtopicClick = (index) => {
     if (onSubtopicSelect) {
+      // If in adventure mode, update the current subtopic index
+      if (questSequence?.started && questSequence?.mode === 'adventure') {
+        // You would need to have this setQuestSequence function passed down as a prop
+        // or use a context to update this state
+        // This is a conceptual example:
+        if (questSequence.setCurrentSubtopicIndex) {
+          questSequence.setCurrentSubtopicIndex(index);
+        }
+      }
+      
       onSubtopicSelect(index);
     }
+  };
+
+  const buttonVariants = {
+    hover: { 
+      scale: 1.05,
+      boxShadow: "0px 6px 15px rgba(0, 0, 0, 0.1)",
+      transition: { 
+        type: "spring", 
+        stiffness: 400, 
+        damping: 10 
+      }
+    },
+    tap: { scale: 0.95 }
   };
 
   // Validation
@@ -143,6 +172,60 @@ const DetailedQuestSlide = ({
     );
   };
 
+
+  // function to render the adventure mode status
+  const renderAdventureModeStatus = () => {
+    if (!questSequence || !questSequence.started || questSequence.mode !== 'adventure') {
+      return null;
+    }
+
+    // Calculate progress
+    const totalQuests = questSequence.totalQuests || 0;
+    const currentQuestIndex = questSequence.currentQuestIndex;
+    const progressPercentage = ((currentQuestIndex + 1) / totalQuests) * 100;
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+        className="bg-gradient-to-r from-indigo-600/10 to-blue-600/10 border border-indigo-200 rounded-lg p-3 mb-4"
+      >
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center">
+            <span className="bg-indigo-600 text-white rounded-md px-2 py-0.5 text-xs font-medium mr-2 flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+              Adventure Mode
+            </span>
+            <span className="text-indigo-700 text-sm font-medium">
+              Quest {currentQuestIndex + 1} of {totalQuests}
+            </span>
+          </div>
+          
+          <button
+            onClick={onExitAdventure}
+            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center"
+          >
+            <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            Exit Adventure
+          </button>
+        </div>
+        
+        <div className="w-full bg-indigo-100 rounded-full h-1.5 overflow-hidden">
+          <div
+            className="bg-indigo-600 h-full rounded-full"
+            style={{ width: `${progressPercentage}%` }}
+          ></div>
+        </div>
+      </motion.div>
+    );
+  };
+
+
   // Floating background element
   const FloatingElement = ({ size, delay, left, top, color, speed }) => (
     <motion.div
@@ -166,6 +249,10 @@ const DetailedQuestSlide = ({
   return (
     <SlideWrapper className="bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50 overflow-hidden" style={{ aspectRatio: '16/9' }}>
       <div className="w-full h-full flex flex-col p-4 md:p-6 lg:p-8 relative overflow-hidden">
+
+           {/* Adventure Mode Status */}
+           {renderAdventureModeStatus()}
+
         {/* Floating Background Elements */}
         <FloatingElement size="w-64 h-64" left="5%" top="15%" color="bg-blue-400/10" speed={7} />
         <FloatingElement size="w-48 h-48" left="70%" top="60%" color="bg-indigo-400/10" delay={1} speed={9} />
@@ -452,34 +539,23 @@ const DetailedQuestSlide = ({
                   transition={{ delay: 0.8 }}
                   className="mt-auto pt-4 flex justify-center"
                 >
-                  <motion.button
-                    onClick={() => {
-                      // Use onNextQuest if available (for adventure mode)
-                      if (typeof onNextQuest === 'function' && questSequence?.started) {
-                        onNextQuest();
-                      } else {
-                        // Otherwise use standard navigation
-                        onNext();
-                      }
-                    }}
-                    className="group flex items-center px-6 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold rounded-xl shadow-lg transition-all overflow-hidden relative"
-                    whileHover={{ 
-                      scale: 1.05,
-                      boxShadow: "0 15px 30px -10px rgba(66, 71, 200, 0.5)",
-                      y: -2
-                    }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    {/* Animated background effect */}
-                    <motion.div 
-                      className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20" 
-                      initial={{ x: "-100%" }}
-                      whileHover={{ x: "100%" }}
-                      transition={{ duration: 0.6 }}
-                    />
-                    
+                   <motion.button
+                      whileHover="hover"
+                      whileTap="tap"
+                      variants={buttonVariants}
+                      onClick={() => {
+                        // Use onNextQuest if available (for adventure mode)
+                        if (typeof onNextQuest === 'function' && questSequence?.started) {
+                          onNextQuest();
+                        } else {
+                          // Otherwise use standard navigation
+                          onNext();
+                        }
+                      }}
+                      className="group flex items-center px-6 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold rounded-xl shadow-lg transition-all overflow-hidden relative"
+                    >
                     <span className="relative z-10">
-                      {questSequence?.started ? 'Continue to Next Quest' : 'Finish Quest'}
+                       {questSequence?.started ? 'Continue Adventure' : 'Finish Quest'}
                     </span>
                     <motion.svg
                       className="ml-2 w-5 h-5 relative z-10"

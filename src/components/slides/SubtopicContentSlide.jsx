@@ -24,6 +24,7 @@ function hasValidContent(content, sectionType) {
   return false;
 }
 
+
 const SubtopicContentSlide = React.memo(({
   courseData,
   content,
@@ -35,7 +36,11 @@ const SubtopicContentSlide = React.memo(({
   onReturnToQuest,
   onRefreshContent,
   isRefreshing,
-  courseId
+  courseId,
+  questSequence,
+  onNextInSequence,
+  onExitAdventure
+
 }) => {
   // Constants and utilities
   const __DEV__ = process.env.NODE_ENV !== 'production';
@@ -86,6 +91,7 @@ const SubtopicContentSlide = React.memo(({
   const apiCallInProgressRef = useRef({});
   const hasInitialLoadRef = useRef(false);
   const loadingCompletedRef = useRef(false);
+  
 
   // Update refs when props change
   useEffect(() => {
@@ -203,6 +209,9 @@ const SubtopicContentSlide = React.memo(({
     
     if (__DEV__) console.log(`Topic changed to: ${topicIdentifier}, resetting state`);
     topicIdentifierRef.current = topicIdentifier;
+
+
+    
     
     // Reset all states
     setUserAnswers({});
@@ -337,7 +346,42 @@ const SubtopicContentSlide = React.memo(({
     });
   }, [sectionToDataMap, currentSection, __DEV__, courseId]);
 
-  
+  //adventure mode status indicator
+  const renderAdventureModeIndicator = useCallback(() => {
+    if (!questSequence || !questSequence.started || questSequence.mode !== 'adventure') {
+      return null;
+    }
+
+    // Get total subtopics for current quest
+    const currentQuest = content?.quests?.[questIndex];
+    const totalSubtopics = currentQuest?.objectives?.length || 0;
+    
+    return (
+      <div className="bg-indigo-600/10 border border-indigo-200 rounded-lg p-2 mb-4 flex items-center justify-between">
+        <div className="flex items-center">
+          <span className="bg-indigo-600 text-white rounded-md px-2 py-0.5 text-xs font-medium mr-2">
+            Adventure Mode
+          </span>
+          <span className="text-indigo-700 text-sm font-medium">
+            Quest {questSequence.currentQuestIndex + 1} • Topic {questSequence.currentSubtopicIndex + 1} of {totalSubtopics}
+          </span>
+        </div>
+        
+        <div className="flex space-x-2">
+          <button
+            onClick={onExitAdventure}
+            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center"
+          >
+            <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            Exit Adventure
+          </button>
+        </div>
+      </div>
+    );
+  }, [questSequence, content, questIndex, onExitAdventure]);
+
   
   // Function to preload all subtopic sections in the background
   const preloadAllSectionContent = useCallback(() => {
@@ -1534,6 +1578,8 @@ const formatOverview = (overviewText) => {
     ? 'from-blue-700 via-indigo-600 to-blue-700' 
     : 'from-indigo-700 via-purple-600 to-indigo-700';
 
+    const isAdventureMode = questSequence?.started && questSequence?.mode === 'adventure';
+
   const slideVariants = {
     enter: { opacity: 0, x: 50 },
     center: { opacity: 1, x: 0 },
@@ -1675,6 +1721,14 @@ const formatOverview = (overviewText) => {
               Back to Topics
             </button>
             
+              <div className="flex-1 p-3 md:p-4 overflow-hidden flex flex-col">
+                    {renderAdventureModeIndicator()}
+                    <AnimatePresence mode="wait">
+                    ...
+                  </AnimatePresence>
+                  ...
+                  </div>
+
             <div className="flex items-center space-x-2">
               <span className="px-2 py-0.5 rounded-md bg-white/20 text-xs font-semibold">
                 Quest {questIndex + 1}
@@ -1812,10 +1866,10 @@ const formatOverview = (overviewText) => {
                 </button>
 
                 <button
-                  onClick={goToNextSection}
+                  onClick={isAdventureMode && currentSection >= sections.length - 1 ? onNextInSequence : goToNextSection}
                   className={`flex items-center px-3 py-1 text-white rounded-lg bg-gradient-to-r ${gradientColors} hover:shadow-md transition-all transform hover:scale-105 text-xs`}
                 >
-                  {currentSection < sections.length - 1 ? 'Next' : 'Complete'}
+                  {currentSection < sections.length - 1 ? 'Next' : isAdventureMode ? 'Next Topic' : 'Complete'}
                   <svg
                     className="ml-1 w-3 h-3"
                     xmlns="http://www.w3.org/2000/svg"

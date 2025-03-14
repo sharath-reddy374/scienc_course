@@ -9,6 +9,7 @@ import WelcomeSlide from './slides/WelcomeSlide';
 import SubtopicContentSlide from './slides/SubtopicContentSlide';
 import CourseSummarySlide from './slides/CourseSummarySlide';
 import DatabaseService from '../services/databaseService';
+import AdventureNavigationBar from './common/AdventureNavigationBar';
 
 import { 
   generateSlideContent, 
@@ -25,6 +26,7 @@ import {
 const pendingRequests = {};
 
 const Course = () => {
+  // ------------------ State & Refs ------------------
   const [currentSlide, setCurrentSlide] = useState(0);  
   const [courseData, setCourseData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -42,83 +44,57 @@ const Course = () => {
   const [questSubtopics, setQuestSubtopics] = useState({});
   const [selectedSubtopicIndex, setSelectedSubtopicIndex] = useState(null);
   const [isShowingSubtopicContent, setIsShowingSubtopicContent] = useState(false);
+  const [slides, setSlides] = useState([]);
 
   // State to track the sequence of quests
   const [questSequence, setQuestSequence] = useState({
     started: false,
     currentQuestIndex: 0,
-    totalQuests: 0
+    currentSubtopicIndex: 0,
+    totalQuests: 0,
+    mode: 'exploration'
   });
-  const [slides, setSlides] = useState([]);
+
+  // Navigation helpers
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Use refs for functions to avoid circular dependencies
+  // Refs to avoid circular dependencies
   const refreshSlidesRef = useRef(() => {
     console.log("Initial refreshSlides called - will be replaced");
   });
-
+  
   const handleQuestSelectRef = useRef(async (questIndex) => {
     console.log("Initial handleQuestSelect called - will be replaced");
   });
+  
+  const handleReturnToQuestRef = useRef(() => {
+    console.log("Initial handleReturnToQuest called - will be replaced");
+  });
+  
+  const handleSubtopicSelectRef = useRef((subtopicIndex) => {
+    console.log("Initial handleSubtopicSelect called - will be replaced");
+  });
 
-  // Forward declaration of preloadRemainingSubtopicSections
   const preloadRemainingSubtopicSectionsRef = useRef(async () => {});
 
-  useEffect(() => {
-    const data = JSON.parse(localStorage.getItem('courseData'));
-    if (!data) {
-      navigate('/');
-      return;
-    }
-    
-    // Ensure courseData has an id
-    if (!data.id) {
-      data.id = Date.now().toString(); // Generate an id if not present
-    }
-    
-    setCourseData(data);
-  }, [navigate]);
+  const handleFetchSubtopicContentRef = useRef(async (options) => {
+    console.log("Initial handleFetchSubtopicContent called - will be replaced");
+    return null;
+  });
 
-  // Add this to your component initialization
-  useEffect(() => {
-    // Initialize course in database if needed
-    const initializeCourseInDb = async () => {
-      if (!courseData?.id) return;
-      
-      try {
-        await DatabaseService.initializeCourse(courseData);
-        console.log('Course initialized in database');
-      } catch (err) {
-        console.error('Error initializing course in database:', err);
-      }
-    };
-    
-    initializeCourseInDb();
-  }, [courseData]);
+  console.log("Quest Sequence State:", questSequence);
 
-  useEffect(() => {
-    if (slideContents.toc && slideContents.toc.quests) {
-      setQuestSequence(prev => ({
-        ...prev,
-        totalQuests: slideContents.toc.quests.length
-      }));
-    }
-  }, [slideContents.toc]);
+  // ------------------ Stable Wrappers ------------------
+  const stableHandleSubtopicSelect = useCallback((subtopicIndex) => {
+    handleSubtopicSelectRef.current(subtopicIndex);
+  }, []);
 
-  const getSubtopicContent = useCallback((questIndex, subtopicIndex) => {
-    if (!slideContents.toc || 
-        !slideContents.toc.quests || 
-        !slideContents.toc.quests[questIndex] ||
-        !slideContents.toc.quests[questIndex].subtopics ||
-        !slideContents.toc.quests[questIndex].subtopics[subtopicIndex]) {
-      return null;
-    }
-    
-    return slideContents.toc.quests[questIndex].subtopics[subtopicIndex].content;
-  }, [slideContents.toc]);
+  const stableHandleReturnToQuest = useCallback(() => {
+    handleReturnToQuestRef.current();
+  }, []);
 
-  // Map contentKey to the type used in generateSlideContent.
+  // ------------------ Utility Callbacks ------------------
   const getContentType = useCallback((contentKey) => {
     switch (contentKey) {
       case 'welcome': return 'WELCOME';
@@ -129,6 +105,21 @@ const Course = () => {
       default: return '';
     }
   }, []);
+
+
+  const getSubtopicContent = useCallback((questIndex, subtopicIndex) => {
+    if (
+      !slideContents.toc || 
+      !slideContents.toc.quests || 
+      !slideContents.toc.quests[questIndex] ||
+      !slideContents.toc.quests[questIndex].subtopics ||
+      !slideContents.toc.quests[questIndex].subtopics[subtopicIndex]
+    ) {
+      return null;
+    }
+    
+    return slideContents.toc.quests[questIndex].subtopics[subtopicIndex].content;
+  }, [slideContents.toc]);
 
   const fetchSlideContent = useCallback(async (contentKey, options = {}, forceRefresh = false) => {
     // Skip if already fetching this content
@@ -209,9 +200,11 @@ const Course = () => {
       setIsRefreshing(prev => ({ ...prev, detail: true }));
       
       // Check if we already have details for this topic and not forcing refresh
-      if (!forceRefresh && 
-          slideContents.content.details && 
-          slideContents.content.details[selectedTopicIndex]) {
+      if (
+        !forceRefresh && 
+        slideContents.content.details && 
+        slideContents.content.details[selectedTopicIndex]
+      ) {
         // We already have this detail content, no need to fetch
         setIsRefreshing(prev => ({ ...prev, detail: false }));
         return;
@@ -362,7 +355,9 @@ const Course = () => {
         console.error("Error refreshing memory content:", error);
         
         // Use fallback content if implemented
-        const fallbackContent = getMemoryFallbackContent ? getMemoryFallbackContent(courseData) : null;
+        const fallbackContent = getMemoryFallbackContent
+          ? getMemoryFallbackContent(courseData)
+          : null;
         if (fallbackContent) {
           setSlideContents(prev => ({
             ...prev,
@@ -378,7 +373,7 @@ const Course = () => {
     }
   }, [courseData, slideContents.toc, fetchSlideContent]);
 
-  // A standalone version of refreshSlides that doesn't depend on getSlides
+  // ------------------ refreshSlides ------------------
   const refreshSlides = useCallback(() => {
     if (refreshSlidesRef.current) {
       refreshSlidesRef.current();
@@ -387,16 +382,17 @@ const Course = () => {
     }
   }, []);
 
-  // The main handleFetchSubtopicContent function
-  const handleFetchSubtopicContent = useCallback(async ({ 
+  // ------------------ handleFetchSubtopicContent ------------------
+  // Moved up so it’s defined before getSlides references it
+  const handleFetchSubtopicContent = useCallback(async ({
     questIndex, 
     subtopicIndex, 
     sectionType = 'overview', 
     forceRefresh = false, 
     preloadAll = false,
     skipRefresh = false,
-    fromDatabase = false, // Added parameter
-    databaseContent = null // Added parameter
+    fromDatabase = false, 
+    databaseContent = null 
   }) => {
     // Create a unique request ID to track and prevent duplicate requests
     const requestId = `${questIndex}-${subtopicIndex}-${sectionType}`;
@@ -484,10 +480,9 @@ const Course = () => {
                 // Check if the quest and subtopic exist
                 if (updatedToc.quests?.[questIndex]?.subtopics?.[subtopicIndex]) {
                   // Make sure the content property exists
-                  updatedToc.quests[questIndex].subtopics[subtopicIndex].content = 
+                  updatedToc.quests[questIndex].subtopics[subtopicIndex].content =
                     updatedToc.quests[questIndex].subtopics[subtopicIndex].content || {};
                   
-                  // Update with database content
                   updatedToc.quests[questIndex].subtopics[subtopicIndex].content = {
                     ...updatedToc.quests[questIndex].subtopics[subtopicIndex].content,
                     ...dbContent
@@ -524,10 +519,14 @@ const Course = () => {
         console.log(`Existing content for ${subtopicKey} in questSubtopics:`, existingContent);
         
         // Check if we already have this section's content cached and not forcing refresh
-        if (!forceRefresh && 
-            existingContent[sectionType] && 
-            (typeof existingContent[sectionType] === 'string' || 
-            (Array.isArray(existingContent[sectionType]) && existingContent[sectionType].length > 0))) {
+        if (
+          !forceRefresh &&
+          existingContent[sectionType] &&
+          (
+            typeof existingContent[sectionType] === 'string' ||
+            (Array.isArray(existingContent[sectionType]) && existingContent[sectionType].length > 0)
+          )
+        ) {
           console.log(`Using cached subtopic content for section: ${sectionType}`);
           
           // If preloadAll is requested, trigger loading of other sections in the background
@@ -655,17 +654,14 @@ const Course = () => {
         console.log(`Successfully updated questSubtopics with ${sectionType} content`);
         
         // Also update the TOC content with this subtopic content
-        // Use callback form to avoid stale state references
         setSlideContents(prev => {
           // Create a deep copy to ensure React detects the change
           const updatedToc = JSON.parse(JSON.stringify(prev.toc));
           
-          // Check if the quest and subtopic exist
           if (updatedToc.quests?.[questIndex]?.subtopics?.[subtopicIndex]) {
-            // Make sure the content property exists
-            updatedToc.quests[questIndex].subtopics[subtopicIndex].content = updatedToc.quests[questIndex].subtopics[subtopicIndex].content || {};
+            updatedToc.quests[questIndex].subtopics[subtopicIndex].content =
+              updatedToc.quests[questIndex].subtopics[subtopicIndex].content || {};
             
-            // Update only the relevant section
             updatedToc.quests[questIndex].subtopics[subtopicIndex].content = {
               ...updatedToc.quests[questIndex].subtopics[subtopicIndex].content,
               title: sectionContent.title || `Topic ${subtopicIndex + 1}`,
@@ -702,7 +698,7 @@ const Course = () => {
                   subtopicIndex,
                   sectionType: 'keyPoints',
                   forceRefresh: false,
-                  skipRefresh: true  // Add skipRefresh for background loads
+                  skipRefresh: true
                 });
               }
             }, 2000);
@@ -715,17 +711,14 @@ const Course = () => {
         console.error('Error fetching subtopic content:', error);
         return null;
       } finally {
-        // Always clean up
         if (!skipRefresh && (sectionType === 'overview' || selectedSubtopicIndex === subtopicIndex)) {
           setIsRefreshing(prev => ({ ...prev, questDetail: false }));
         }
       }
     })();
     
-    // Store the promise for deduplication
     pendingRequests[requestId] = requestPromise;
     
-    // Clean up when done
     requestPromise.finally(() => {
       delete pendingRequests[requestId];
     });
@@ -735,17 +728,39 @@ const Course = () => {
     courseData,
     selectedSubtopicIndex,
     slideContents,
-    // slideContents.toc,
     questSubtopics,
     refreshSlides
   ]);
 
-  // Now we can safely implement preloadRemainingSubtopicSections
-  const preloadRemainingSubtopicSections = useCallback(async (questIndex, subtopicIndex, existingContent) => {
-    // List of all section types
-    const allSectionTypes = ['keyPoints', 'examples', 'exercises', 'matchingExercises'];
+  // Keep this effect so the ref always points to the newest callback
+  useEffect(() => {
+    handleFetchSubtopicContentRef.current = handleFetchSubtopicContent;
+  }, [handleFetchSubtopicContent]);
+
+  // ------------------ stableSubtopicRefreshHandler ------------------
+  const stableSubtopicRefreshHandler = useCallback((options) => {
+    const { questIndex, subtopicIndex, sectionType, forceRefresh } = options;
+    const requestId = `${questIndex}-${subtopicIndex}-${sectionType}`;
     
-    // Filter out sections that already exist
+    if (pendingRequests[requestId] && !forceRefresh) {
+      console.log(`Request ${requestId} already in progress, returning cached promise`);
+      return pendingRequests[requestId];
+    }
+    
+    console.log(`Starting request for ${requestId}`);
+    const requestPromise = handleFetchSubtopicContent(options)
+      .finally(() => {
+        delete pendingRequests[requestId];
+      });
+    
+    pendingRequests[requestId] = requestPromise;
+    
+    return requestPromise;
+  }, [handleFetchSubtopicContent]);
+
+  // ------------------ preloadRemainingSubtopicSections ------------------
+  const preloadRemainingSubtopicSections = useCallback(async (questIndex, subtopicIndex, existingContent) => {
+    const allSectionTypes = ['keyPoints', 'examples', 'exercises', 'matchingExercises'];
     const sectionsToFetch = allSectionTypes.filter(
       type => !existingContent[type] || 
       (Array.isArray(existingContent[type]) && existingContent[type].length === 0)
@@ -753,7 +768,6 @@ const Course = () => {
     
     console.log(`Preloading remaining sections for subtopic ${questIndex}-${subtopicIndex}:`, sectionsToFetch);
     
-    // First check if sections exist in database
     if (courseData?.id) {
       for (const sectionType of [...sectionsToFetch]) {
         try {
@@ -761,14 +775,10 @@ const Course = () => {
           
           if (dbContent && dbContent[sectionType]) {
             console.log(`Found ${sectionType} in database for subtopic ${questIndex}-${subtopicIndex}`);
-            
-            // Remove from sections to fetch
             const index = sectionsToFetch.indexOf(sectionType);
             if (index > -1) {
               sectionsToFetch.splice(index, 1);
             }
-            
-            // Update our state with this content
             const subtopicKey = `${questIndex}-${subtopicIndex}`;
             setQuestSubtopics(prev => ({
               ...prev,
@@ -784,7 +794,6 @@ const Course = () => {
       }
     }
     
-    // Load remaining sections from API with a delay
     sectionsToFetch.forEach((sectionType, index) => {
       setTimeout(() => {
         console.log(`Background loading ${sectionType}`);
@@ -793,149 +802,238 @@ const Course = () => {
           subtopicIndex,
           sectionType,
           forceRefresh: false,
-          preloadAll: false,  // Prevent cascading preloads
-          skipRefresh: true   // Add skipRefresh to prevent UI updates
+          preloadAll: false,
+          skipRefresh: true
         }).catch(err => console.error(`Error preloading ${sectionType}:`, err));
-      }, index * 1000);  // Start each fetch 1 second after the previous one
+      }, index * 1000);
     });
   }, [courseData, handleFetchSubtopicContent]);
 
-  // Update the ref now that we have the real implementation
   useEffect(() => {
     preloadRemainingSubtopicSectionsRef.current = preloadRemainingSubtopicSections;
   }, [preloadRemainingSubtopicSections]);
 
-  const stableSubtopicRefreshHandler = useCallback((options) => {
-    // Create a unique ID for this request
-    const { questIndex, subtopicIndex, sectionType, forceRefresh } = options;
-    const requestId = `${questIndex}-${subtopicIndex}-${sectionType}`;
-    
-    // If we have a pending request and we're not forcing a refresh, return it
-    if (pendingRequests[requestId] && !forceRefresh) {
-      console.log(`Request ${requestId} already in progress, returning cached promise`);
-      return pendingRequests[requestId];
-    }
-    
-    console.log(`Starting request for ${requestId}`);
-    
-    // Create the promise for this request
-    const requestPromise = handleFetchSubtopicContent(options)
-      .finally(() => {
-        // Always clean up
-        delete pendingRequests[requestId];
-      });
-    
-    // Store it for deduplication
-    pendingRequests[requestId] = requestPromise;
-    
-    return requestPromise;
-  }, [handleFetchSubtopicContent]);
-
-  const handleSubtopicSelect = useCallback((subtopicIndex) => {
-    console.log("handleSubtopicSelect called with index:", subtopicIndex);
-    setSelectedSubtopicIndex(subtopicIndex);
-    setIsShowingSubtopicContent(true);
-    
-    // Update the slide to the subtopic content slide
-    setCurrentSlide(3);
-    
-    // Request content with preloadAll flag
-    handleFetchSubtopicContent({
-      questIndex: selectedQuestIndex,
-      subtopicIndex: subtopicIndex,
-      sectionType: 'overview',
-      forceRefresh: false,
-      preloadAll: true  // Request preloading of all other sections
-    });
-  }, [selectedQuestIndex, handleFetchSubtopicContent]);
-
-  // Function to handle returning from subtopic to quest
+  // ------------------ handleReturnToQuest ------------------
   const handleReturnToQuest = useCallback(() => {
     setIsShowingSubtopicContent(false);
     setSelectedSubtopicIndex(null);
-    
-    // Go back to the DetailedQuestSlide (index 2 in modified slide array)
     setCurrentSlide(2);
   }, []);
 
-  // Begin Adventure function to start the quest sequence
-  const handleBeginAdventure = useCallback(async () => {
-    console.log("Beginning adventure...");
-    
-    // Make sure we have TOC content with quests
-    if (!slideContents.toc || !slideContents.toc.quests || slideContents.toc.quests.length === 0) {
-      console.error("Cannot begin adventure: TOC content or quests not available");
-      return;
+  useEffect(() => {
+    handleReturnToQuestRef.current = handleReturnToQuest;
+  }, [handleReturnToQuest]);
+
+  // ------------------ getNextSequenceStep ------------------
+  const getNextSequenceStep = useCallback(() => {
+    if (!questSequence.started || questSequence.mode !== 'adventure') {
+      return null;
     }
     
-    // Start the sequence with Quest 1
-    setQuestSequence({
-      started: true,
-      currentQuestIndex: 0,
-      totalQuests: slideContents.toc.quests.length
-    });
+    const currentQuest = slideContents.toc?.quests?.[questSequence.currentQuestIndex];
+    if (!currentQuest) return null;
     
-    // Navigate to Quest 1
-    await handleQuestSelectRef.current(0);
-  }, [slideContents.toc]);
+    const totalSubtopics = currentQuest.objectives ? currentQuest.objectives.length : 0;
+    
+    if (questSequence.currentSubtopicIndex < totalSubtopics - 1) {
+      return {
+        questIndex: questSequence.currentQuestIndex,
+        subtopicIndex: questSequence.currentSubtopicIndex + 1,
+        isLastInSequence: false
+      };
+    } else {
+      const nextQuestIndex = questSequence.currentQuestIndex + 1;
+      if (nextQuestIndex >= questSequence.totalQuests) {
+        return {
+          isLastInSequence: true
+        };
+      }
+      return {
+        questIndex: nextQuestIndex,
+        subtopicIndex: 0,
+        isLastInSequence: false
+      };
+    }
+  }, [questSequence, slideContents.toc]);
 
-
-
-
-
-
-  
-  // handleQuestSelect function to directly set state
+  // ------------------ handleQuestSelect ------------------
   const handleQuestSelect = useCallback(async (questIndex) => {
     console.log("handleQuestSelect called with index:", questIndex);
     
-    // Set states
     setSelectedQuestIndex(questIndex);
     setIsShowingQuestDetail(true);
     
+    if (questSequence.mode === 'adventure' && questSequence.started) {
+      setQuestSequence(prev => ({
+        ...prev,
+        currentQuestIndex: questIndex,
+        currentSubtopicIndex: 0
+      }));
+    } else {
+      setQuestSequence(prev => ({
+        ...prev,
+        mode: 'exploration',
+        currentQuestIndex: questIndex
+      }));
+    }
+    
     console.log("Quest selection state updated");
-  }, []);
+  }, [questSequence.mode, questSequence.started]);
 
   useEffect(() => {
     handleQuestSelectRef.current = handleQuestSelect;
   }, [handleQuestSelect]);
-  
-  
-  
-  // Function to handle continuing to next quest in sequence
+
+  // ------------------ handleSubtopicSelect ------------------
+  const handleSubtopicSelect = useCallback((subtopicIndex) => {
+    console.log("handleSubtopicSelect called with index:", subtopicIndex);
+    setSelectedSubtopicIndex(subtopicIndex);
+    setIsShowingSubtopicContent(true);
+    setCurrentSlide(3);
+    
+    if (questSequence.mode === 'adventure' && questSequence.started) {
+      setQuestSequence(prev => ({
+        ...prev,
+        currentSubtopicIndex: subtopicIndex
+      }));
+    }
+    
+    handleFetchSubtopicContentRef.current({
+      questIndex: selectedQuestIndex,
+      subtopicIndex: subtopicIndex,
+      sectionType: 'overview',
+      forceRefresh: false,
+      preloadAll: true
+    });
+  }, [selectedQuestIndex, questSequence.mode, questSequence.started]);
+
+  useEffect(() => {
+    handleSubtopicSelectRef.current = handleSubtopicSelect;
+  }, [handleSubtopicSelect]);
+
+  // ------------------ handleNextQuest ------------------
   const handleNextQuest = useCallback(async () => {
     if (!questSequence.started) return;
     
     const nextQuestIndex = questSequence.currentQuestIndex + 1;
-    
-    // Check if we've reached the end of the quest sequence
     if (nextQuestIndex >= questSequence.totalQuests) {
       console.log("Quests complete");
-      // End quest sequence
       setQuestSequence(prev => ({
         ...prev,
         started: false
       }));
       setIsShowingQuestDetail(false);
       setSelectedQuestIndex(null);
-      
-      // Navigate to the next slide after quests
       setCurrentSlide(1);
-      
       return;
     }
     
-    // Update the current quest in the sequence
     setQuestSequence(prev => ({
       ...prev,
       currentQuestIndex: nextQuestIndex
     }));
     
-    // Navigate to the next quest
     await handleQuestSelectRef.current(nextQuestIndex);
   }, [questSequence]);
-  
-  // Define getSlides after we have all the dependencies
+
+  // ------------------ handleAdvanceAdventure ------------------
+  const handleAdvanceAdventure = useCallback(async () => {
+    if (!questSequence.started || questSequence.mode !== 'adventure') {
+      handleNext();
+      return;
+    }
+    
+    const nextStep = getNextSequenceStep();
+    
+    if (!nextStep) {
+      handleNext();
+      return;
+    }
+    
+    if (nextStep.isLastInSequence) {
+      console.log("Adventure complete");
+      setQuestSequence(prev => ({
+        ...prev,
+        started: false,
+        mode: 'exploration'
+      }));
+      setIsShowingQuestDetail(false);
+      setIsShowingSubtopicContent(false);
+      setSelectedQuestIndex(null);
+      setSelectedSubtopicIndex(null);
+      setCurrentSlide(4);
+      return;
+    }
+    
+    if (nextStep.questIndex !== questSequence.currentQuestIndex) {
+      setIsShowingSubtopicContent(false);
+      setSelectedSubtopicIndex(null);
+      setQuestSequence(prev => ({
+        ...prev,
+        currentQuestIndex: nextStep.questIndex,
+        currentSubtopicIndex: nextStep.subtopicIndex
+      }));
+      
+      await handleQuestSelectRef.current(nextStep.questIndex);
+      setTimeout(() => {
+        stableHandleSubtopicSelect(nextStep.subtopicIndex);
+      }, 300);
+    } else {
+      setQuestSequence(prev => ({
+        ...prev,
+        currentSubtopicIndex: nextStep.subtopicIndex
+      }));
+      stableHandleSubtopicSelect(nextStep.subtopicIndex);
+    }
+  }, [questSequence, getNextSequenceStep, stableHandleSubtopicSelect]);
+
+  // ------------------ handleBeginAdventure ------------------
+  const handleBeginAdventure = useCallback(async () => {
+    console.log("Beginning adventure...");
+    
+    if (!slideContents.toc || !slideContents.toc.quests || slideContents.toc.quests.length === 0) {
+      console.error("Cannot begin adventure: TOC content or quests not available");
+      return;
+    }
+    
+    setQuestSequence({
+      started: true,
+      currentQuestIndex: 0,
+      currentSubtopicIndex: 0,
+      totalQuests: slideContents.toc.quests.length,
+      mode: 'adventure'
+    });
+    
+    await handleQuestSelectRef.current(0);
+    setTimeout(() => {
+      if (
+        slideContents.toc.quests[0].objectives && 
+        slideContents.toc.quests[0].objectives.length > 0
+      ) {
+        stableHandleSubtopicSelect(0);
+      }
+    }, 300);
+  }, [slideContents.toc, stableHandleSubtopicSelect]);
+
+  // ------------------ handleExitAdventure ------------------
+  const handleExitAdventure = useCallback(() => {
+    setQuestSequence(prev => ({
+      ...prev,
+      started: false,
+      mode: 'exploration'
+    }));
+    
+    if (isShowingSubtopicContent) {
+      setIsShowingSubtopicContent(false);
+      setSelectedSubtopicIndex(null);
+      setIsShowingQuestDetail(false);
+      setSelectedQuestIndex(null);
+      setCurrentSlide(1);
+    }
+  }, [isShowingSubtopicContent]);
+
+  // ------------------ getSlides ------------------
+  // Now that handleFetchSubtopicContent is declared above, we can safely reference it
   const getSlides = useCallback(() => {
     console.log(
       "getSlides called:",
@@ -952,29 +1050,21 @@ const Course = () => {
       { component: CourseSummarySlide, title: 'Course Summary', contentKey: 'summary', props: { courseId: courseData?.id } }
     ];
     
-    // In getSlides function - add these lines at the beginning to debug content sources
     if (isShowingSubtopicContent && selectedQuestIndex !== null && selectedSubtopicIndex !== null) {
-      // Check all possible sources of subtopic content
       const subtopicKey = `${selectedQuestIndex}-${selectedSubtopicIndex}`;
       console.log("Content in questSubtopics:", questSubtopics[subtopicKey]);
       console.log("Content in TOC:", slideContents.toc?.quests?.[selectedQuestIndex]?.subtopics?.[selectedSubtopicIndex]?.content);
+
     }
-    
-    // If we're showing quest detail, insert it after TOC slide (which is at index 1)
+
     if (isShowingQuestDetail && selectedQuestIndex !== null) {
-      console.log("Adding DetailedQuestSlide after TOC, quest index =", selectedQuestIndex);
-        
-      // If we're showing subtopic content, add that slide after DetailedQuestSlide
       if (isShowingSubtopicContent && selectedSubtopicIndex !== null) {
         console.log("Adding SubtopicContentSlide after DetailedQuestSlide");
         
-        // IMPORTANT: Get the content from multiple possible sources
-        // This is a key change - combining sources to ensure we get the content
         const subtopicKey = `${selectedQuestIndex}-${selectedSubtopicIndex}`;
         const fromQuestSubtopics = questSubtopics[subtopicKey] || {};
         const fromTocContent = slideContents.toc?.quests?.[selectedQuestIndex]?.subtopics?.[selectedSubtopicIndex]?.content || {};
         
-        // Merge the content sources with a preference for questSubtopics (more likely to be up-to-date)
         const subtopicContent = {
           ...fromTocContent,
           ...fromQuestSubtopics
@@ -983,43 +1073,55 @@ const Course = () => {
         console.log("Final merged subtopicContent for slide:", subtopicContent);
         
         const newSlides = [
-          baseSlides[0], // WelcomeSlide
-          baseSlides[1], // TOCSlide
+          baseSlides[0],
+          baseSlides[1],
           { 
             component: DetailedQuestSlide, 
             title: `Quest ${selectedQuestIndex + 1} Detail`, 
-            contentKey: 'toc', // Using TOC content for DetailedQuestSlide
-            props: { selectedQuestIndex } 
+            contentKey: 'toc',
+            props: { 
+              selectedQuestIndex,
+              onExitAdventure: handleExitAdventure,
+              onNextQuest: handleNextQuest
+            } 
           },
           {
             component: SubtopicContentSlide,
             title: `Quest ${selectedQuestIndex + 1} - Topic ${selectedSubtopicIndex + 1}`,
-            contentKey: 'toc', // Using TOC content for SubtopicContentSlide
+            contentKey: 'toc',
             props: { 
               questIndex: selectedQuestIndex,
               subtopicIndex: selectedSubtopicIndex,
-              subtopicContent: subtopicContent, // Use the merged content
+              subtopicContent: subtopicContent,
               onRefreshContent: handleFetchSubtopicContent,
-              courseId: courseData?.id
+              courseId: courseData?.id,
+              onReturnToQuest: stableHandleReturnToQuest,
+              questSequence: questSequence,
+              onNextInSequence: handleAdvanceAdventure,
+              onExitAdventure: handleExitAdventure
             }
           },
-          ...baseSlides.slice(2) // All slides after TOC
+          ...baseSlides.slice(2)
         ];
         
         return newSlides;
       }
-        
-      // Just show the DetailedQuestSlide without the subtopic content
+
+      console.log("Adding DetailedQuestSlide after TOC, quest index =", selectedQuestIndex);
       const newSlides = [
-        baseSlides[0], // WelcomeSlide
-        baseSlides[1], // TOCSlide
+        baseSlides[0],
+        baseSlides[1],
         { 
           component: DetailedQuestSlide, 
           title: `Quest ${selectedQuestIndex + 1} Detail`, 
-          contentKey: 'toc', // Using TOC content for DetailedQuestSlide
-          props: { selectedQuestIndex } 
+          contentKey: 'toc',
+          props: { 
+            selectedQuestIndex,
+            onExitAdventure: handleExitAdventure,
+            onNextQuest: handleNextQuest
+          } 
         },
-        ...baseSlides.slice(2) // All slides after TOC
+        ...baseSlides.slice(2)
       ];
         
       return newSlides;
@@ -1027,17 +1129,22 @@ const Course = () => {
       
     return baseSlides;
   }, [
-    isShowingQuestDetail, 
+    isShowingQuestDetail,
     selectedQuestIndex, 
     isShowingSubtopicContent, 
     selectedSubtopicIndex, 
     questSubtopics, 
     slideContents.toc, 
     courseData?.id,
-    handleFetchSubtopicContent
+    handleFetchSubtopicContent,
+    stableHandleReturnToQuest,
+    questSequence,
+    handleAdvanceAdventure,
+    handleExitAdventure,
+    handleNextQuest
   ]);
-  
-  // Update refreshSlidesRef with implementation that uses getSlides
+
+  // ------------------ refreshSlidesRef assignment ------------------
   useEffect(() => {
     refreshSlidesRef.current = () => {
       if (isShowingSubtopicContent && selectedSubtopicIndex !== null) {
@@ -1049,8 +1156,8 @@ const Course = () => {
       }
     };
   }, [isShowingSubtopicContent, selectedSubtopicIndex, getSlides]);
-  
-  // Update slides when anything related to subtopic display changes
+
+  // ------------------ Sync slides when subtopic or quest changes ------------------
   useEffect(() => {
     if (isShowingQuestDetail || isShowingSubtopicContent || selectedSubtopicIndex !== null) {
       const updatedSlides = getSlides();
@@ -1058,68 +1165,49 @@ const Course = () => {
       console.log("Updated slides for subtopic:", updatedSlides.map(s => s.title));
     }
   }, [isShowingQuestDetail, isShowingSubtopicContent, selectedQuestIndex, selectedSubtopicIndex, slideContents.toc, getSlides]);
-  
-  // Update slides state whenever relevant state changes
+
   useEffect(() => {
     const updatedSlides = getSlides();
     setSlides(updatedSlides);
     console.log("Updated slides:", updatedSlides.map(s => s.title));
   }, [isShowingQuestDetail, selectedQuestIndex, getSlides]);
-  
-  // Effect: Handle navigation to quest detail after state updates
+
+  // ------------------ isShowingQuestDetail effect ------------------
   useEffect(() => {
-    // Only run this effect when isShowingQuestDetail changes to true
     if (isShowingQuestDetail && selectedQuestIndex !== null) {
       console.log("EFFECT: Navigating to quest detail, quest index =", selectedQuestIndex);
-      
-      // Navigate to the correct slide index (DetailedQuestSlide is now at index 2)
       setCurrentSlide(2);
     }
   }, [isShowingQuestDetail, selectedQuestIndex]);
-  
-  // Replace your current useEffect for initial content loading
-  useEffect(() => {
-    const loadInitialContent = async () => {
-      if (!courseData) return;
-      
-      // Load TOC content first
-      if (!slideContents.toc) {
-        await fetchSlideContent('toc');
-      }
-      
-      // Then preload summary content if we have TOC
-      if (slideContents.toc && !slideContents.summary) {
-        handleFetchSummaryContent({ forceRefresh: false });
-      }
-    };
-    
-    loadInitialContent();
-  }, [courseData, slideContents.toc, fetchSlideContent, handleFetchSummaryContent]);
-  
-  // handleNext to work with quest sequence and new slide indexing
+
+  // ------------------ handleNext ------------------
   const handleNext = useCallback(async () => {
-    // If we're in subtopic content view
+    if (
+      questSequence.mode === 'adventure' && 
+      questSequence.started && 
+      isShowingSubtopicContent && 
+      currentSlide === 3
+    ) {
+      handleAdvanceAdventure();
+      return;
+    }
+    
     if (isShowingQuestDetail && isShowingSubtopicContent && currentSlide === 3) {
-      // Logic to either go to the next subtopic or back to quest detail
       const quest = slideContents.toc.quests[selectedQuestIndex];
       if (quest && quest.objectives && selectedSubtopicIndex < quest.objectives.length - 1) {
-        // Go to next subtopic
-        handleSubtopicSelect(selectedSubtopicIndex + 1);
+        stableHandleSubtopicSelect(selectedSubtopicIndex + 1);
       } else {
-        // No more subtopics, go back to quest detail
-        handleReturnToQuest();
+        handleReturnToQuestRef.current();
       }
       return;
     }
     
-    // If we're in quest detail view and quest sequence is active
     if (isShowingQuestDetail && questSequence.started && currentSlide === 2) {
       console.log("Moving to next quest in sequence");
       await handleNextQuest();
       return;
     }
     
-    // Normal slide navigation
     if (currentSlide < slides.length - 1) {
       const nextSlide = slides[currentSlide + 1];
       console.log("Navigating to next slide:", nextSlide.title, "contentKey:", nextSlide.contentKey);
@@ -1143,24 +1231,58 @@ const Course = () => {
     selectedQuestIndex, 
     selectedSubtopicIndex, 
     slideContents, 
-    handleSubtopicSelect, 
-    handleReturnToQuest, 
+    stableHandleSubtopicSelect, 
     handleNextQuest, 
-    fetchSlideContent
+    fetchSlideContent,
+    handleAdvanceAdventure
   ]);
-  
-  // handlePrevious to work with quest sequence and new slide indexing
+
+  // ------------------ handlePrevious ------------------
   const handlePrevious = useCallback(() => {
-    // If we're in subtopic content view
+    if (
+      questSequence.mode === 'adventure' && 
+      questSequence.started && 
+      isShowingSubtopicContent
+    ) {
+      setIsShowingSubtopicContent(false);
+      setSelectedSubtopicIndex(null);
+      setCurrentSlide(2);
+      return;
+    }
+  
+    if (
+      questSequence.mode === 'adventure' && 
+      questSequence.started && 
+      isShowingQuestDetail && 
+      !isShowingSubtopicContent
+    ) {
+      if (questSequence.currentQuestIndex === 0) {
+        setQuestSequence(prev => ({
+          ...prev,
+          started: false,
+          mode: 'exploration'
+        }));
+        setIsShowingQuestDetail(false);
+        setSelectedQuestIndex(null);
+        setCurrentSlide(1);
+      } else {
+        const prevQuestIndex = questSequence.currentQuestIndex - 1;
+        setQuestSequence(prev => ({
+          ...prev,
+          currentQuestIndex: prevQuestIndex,
+          currentSubtopicIndex: 0
+        }));
+        handleQuestSelect(prevQuestIndex);
+      }
+      return;
+    }
+  
     if (isShowingQuestDetail && isShowingSubtopicContent && currentSlide === 3) {
-      // Go back to quest detail
-      handleReturnToQuest();
+      handleReturnToQuestRef.current();
       return;
     }
     
-    // If we're in quest detail view and quest sequence is active
     if (isShowingQuestDetail && questSequence.started && currentSlide === 2) {
-      // If we're at the first quest, go back to TOC
       if (questSequence.currentQuestIndex === 0) {
         console.log("Going back from first quest to TOC");
         setQuestSequence(prev => ({
@@ -1169,9 +1291,8 @@ const Course = () => {
         }));
         setIsShowingQuestDetail(false);
         setSelectedQuestIndex(null);
-        setCurrentSlide(1); // Go back to TOC at index 1
+        setCurrentSlide(1);
       } else {
-        // Otherwise go to previous quest in sequence
         console.log("Going to previous quest in sequence");
         setQuestSequence(prev => ({
           ...prev,
@@ -1182,14 +1303,12 @@ const Course = () => {
       return;
     }
     
-    // Normal slide navigation
     if (currentSlide > 0) {
-      // If we're in the quest detail slide and going back (not in sequence mode)
       if (currentSlide === 2 && isShowingQuestDetail && !questSequence.started) {
         console.log("Going back from quest detail to TOC");
         setIsShowingQuestDetail(false);
         setSelectedQuestIndex(null);
-        setCurrentSlide(1); // Go back to TOC at index 1
+        setCurrentSlide(1);
       } else {
         console.log("Going to previous slide");
         setCurrentSlide(currentSlide - 1);
@@ -1200,15 +1319,74 @@ const Course = () => {
     isShowingQuestDetail, 
     isShowingSubtopicContent, 
     questSequence, 
-    handleReturnToQuest, 
-    handleQuestSelect
+    handleQuestSelect 
   ]);
-  
+
+  // ------------------ handleClose ------------------
   const handleClose = useCallback(() => {
     localStorage.removeItem('courseData');
     navigate('/');
   }, [navigate]);
+
+  // ------------------ useEffect: load courseData ------------------
+  useEffect(() => {
+    const data = JSON.parse(localStorage.getItem('courseData'));
+    if (!data) {
+      navigate('/');
+      return;
+    }
+    if (!data.id) {
+      data.id = Date.now().toString();
+    }
+    setCourseData(data);
+  }, [navigate]);
+
+  // ------------------ useEffect: initializeCourseInDb ------------------
+  useEffect(() => {
+    const initializeCourseInDb = async () => {
+      if (!courseData?.id) return;
+      try {
+        await DatabaseService.initializeCourse(courseData);
+        console.log('Course initialized in database');
+      } catch (err) {
+        console.error('Error initializing course in database:', err);
+      }
+    };
+    initializeCourseInDb();
+  }, [courseData]);
+
+  // ------------------ useEffect: update questSequence total ------------------
+  useEffect(() => {
+    if (slideContents.toc && slideContents.toc.quests) {
+      setQuestSequence(prev => ({
+        ...prev,
+        totalQuests: slideContents.toc.quests.length
+      }));
+    }
+  }, [slideContents.toc]);
   
+  // ------------------ useEffect: initial content loading ------------------
+  useEffect(() => {
+    const loadInitialContent = async () => {
+      if (!courseData) return;
+      if (!slideContents.toc) {
+        await fetchSlideContent('toc');
+      }
+      if (slideContents.toc && !slideContents.summary) {
+        handleFetchSummaryContent({ forceRefresh: false });
+      }
+    };
+    loadInitialContent();
+  }, [courseData, slideContents.toc, fetchSlideContent, handleFetchSummaryContent]);
+
+
+  // Add this useEffect to monitor mode changes
+useEffect(() => {
+  console.log("Quest sequence mode changed:", questSequence.mode);
+  console.log("Stack trace:", new Error().stack);
+}, [questSequence.mode]);
+
+  // ------------------ Render ------------------
   if (!courseData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -1216,91 +1394,94 @@ const Course = () => {
       </div>
     );
   }
-  
-  // Show global loading only for slide transitions.
+
   if (isLoading) {
     return <LoadingSpinner />;
   }
-  
-  // Get the current slide from the slides state
+
   const CurrentSlideComponent = slides[currentSlide]?.component;
   const currentContentKey = slides[currentSlide]?.contentKey;
   const contentProp = currentContentKey ? slideContents[currentContentKey] : undefined;
   const additionalProps = slides[currentSlide]?.props || {};
-  
-  // Handle case where slides array isn't updated yet
+
   if (!CurrentSlideComponent) {
     return <LoadingSpinner />;
   }
-  
-  // Pass handlers for subtopic selection
+
   if (CurrentSlideComponent === DetailedQuestSlide) {
-    additionalProps.onSubtopicSelect = handleSubtopicSelect;
+    additionalProps.onSubtopicSelect = stableHandleSubtopicSelect;
     additionalProps.onRefreshContent = handleFetchSubtopicContent;
+    additionalProps.onExitAdventure = handleExitAdventure;
+    additionalProps.onNextQuest = handleNextQuest;
+    additionalProps.questSequence = questSequence;
   }
-  
-  // Pass handler for returning to quest
+
   if (CurrentSlideComponent === SubtopicContentSlide) {
-    additionalProps.onReturnToQuest = handleReturnToQuest;
+    additionalProps.onReturnToQuest = stableHandleReturnToQuest;
+    additionalProps.questSequence = questSequence;
+    additionalProps.onNextInSequence = handleAdvanceAdventure;
+    additionalProps.onExitAdventure = handleExitAdventure;
   }
-  
+
   console.log("Rendering slide:", currentSlide, 
-            "Component:", CurrentSlideComponent.name || "Unknown",
-            "contentKey:", currentContentKey,
-            "hasContent:", !!contentProp,
-            "additionalProps:", additionalProps,
-            "questSequence:", questSequence);
-  
-  return (
-    <div className="min-h-screen relative">
-      <button 
-        onClick={handleClose} 
-        className="absolute top-4 right-4 z-10 p-2 rounded-full hover:bg-gray-100 transition-colors"
-        aria-label="Close course"
-      >
-        <X size={24} strokeWidth={2} />
-      </button>
-  
-      <CurrentSlideComponent 
-        courseData={courseData}
-        content={contentProp}
-        onNext={handleNext}
-        onPrevious={handlePrevious}
-        // Pass both quest handlers to TOC slide (index 1)
-        onQuestSelect={currentSlide === 1 ? handleQuestSelect : undefined}
-        onBeginAdventure={currentSlide === 1 ? handleBeginAdventure : undefined}
-        // Pass quest sequence info if we're in a quest detail slide
-        questSequence={isShowingQuestDetail ? questSequence : undefined}
-  
-        // Dynamic refresh content handler based on slide type
-        onRefreshContent={
-          currentContentKey === 'content' 
-            ? (selectedTopicIndex) => handleFetchDetailContent(selectedTopicIndex, true)
-            : currentContentKey === 'questDetail' || (isShowingQuestDetail && currentSlide === 2)
-              ? stableSubtopicRefreshHandler // Use the stable callback here
-              : currentContentKey === 'summary'
-              ? (options) => handleFetchSummaryContent({...options, forceRefresh: true})
-              : currentContentKey 
-                ? (options) => handleRefreshContent(currentContentKey, {...options, forceRefresh: true}) 
-                : undefined
-        }
-        // Dynamic refreshing state
-        isRefreshing={
-          currentContentKey === 'content'
-            ? isRefreshing.detail || isRefreshing.content
-            : currentContentKey === 'questDetail' || (isShowingQuestDetail && currentSlide === 2)
-              ? isRefreshing.questDetail
-              : currentContentKey 
-                ? isRefreshing[currentContentKey] 
-                : false
-        }
-        isFirst={currentSlide === 0}
-        isLast={currentSlide === slides.length - 1}
-        // Spread any additional props
-        {...additionalProps}
-      />
-    </div>
-  );
-  };
-  
-  export default Course;
+              "Component:", CurrentSlideComponent.name || "Unknown",
+              "contentKey:", currentContentKey,
+              "hasContent:", !!contentProp,
+              "additionalProps:", additionalProps,
+              "questSequence:", questSequence);
+
+              return (
+                <div className="min-h-screen relative">
+                  <button 
+                    onClick={handleClose} 
+                    className="absolute top-4 right-4 z-10 p-2 rounded-full hover:bg-gray-100 transition-colors"
+                    aria-label="Close course"
+                  >
+                    <X size={24} strokeWidth={2} />
+                  </button>
+              
+                  <CurrentSlideComponent 
+                    courseData={courseData}
+                    content={contentProp}
+                    onNext={handleNext}
+                    onPrevious={handlePrevious}
+                    onQuestSelect={currentSlide === 1 ? handleQuestSelect : undefined}
+                    onBeginAdventure={currentSlide === 1 ? handleBeginAdventure : undefined}
+                    onRefreshContent={
+                      currentContentKey === 'content' 
+                        ? (selectedTopicIndex) => handleFetchDetailContent(selectedTopicIndex, true)
+                        : currentContentKey === 'questDetail' || (isShowingQuestDetail && currentSlide === 2)
+                          ? stableSubtopicRefreshHandler
+                          : currentContentKey === 'summary'
+                            ? (options) => handleFetchSummaryContent({...options, forceRefresh: true})
+                            : currentContentKey 
+                              ? (options) => handleRefreshContent(currentContentKey, {...options, forceRefresh: true}) 
+                              : undefined
+                    }
+                    isRefreshing={
+                      currentContentKey === 'content'
+                        ? isRefreshing.detail || isRefreshing.content
+                        : currentContentKey === 'questDetail' || (isShowingQuestDetail && currentSlide === 2)
+                          ? isRefreshing.questDetail
+                          : currentContentKey 
+                            ? isRefreshing[currentContentKey] 
+                            : false
+                    }
+                    isFirst={currentSlide === 0}
+                    isLast={currentSlide === slides.length - 1}
+                    {...additionalProps}
+                  />
+              
+                  {/* Add the AdventureNavigationBar component here */}
+                  <AdventureNavigationBar 
+                    questSequence={questSequence}
+                    slideContents={slideContents}
+                    onNext={handleNext}
+                    onPrevious={handlePrevious}
+                    onExitAdventure={handleExitAdventure}
+                  />
+                </div>
+              );
+};
+
+export default Course;

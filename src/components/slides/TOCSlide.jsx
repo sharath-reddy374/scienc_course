@@ -96,6 +96,67 @@ const TOCSlide = ({
     }
   };
 
+  // Enhanced "Begin Adventure" button with animation and guidance
+  const renderEnhancedAdventureButton = () => {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: isReady ? 1 : 0, scale: isReady ? 1 : 0.9 }}
+        transition={{ duration: 0.5, delay: 0.5 }}
+        className="w-full flex flex-col items-center mt-6 mb-2 flex-shrink-0"
+      >
+        <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg p-4 border border-indigo-100 max-w-xl w-full">
+          <div className="flex items-start mb-3">
+            <div className="bg-indigo-600 rounded-full p-2 text-white mr-3 flex-shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-bold text-indigo-700 mb-1">Adventure Mode</h3>
+              <p className="text-sm text-indigo-600">
+                Experience a guided journey through all quests and topics in sequence, building your knowledge step by step.
+              </p>
+            </div>
+          </div>
+          
+          <motion.button
+            whileHover={{ 
+              scale: 1.05, 
+              boxShadow: "0 10px 25px -5px rgba(66, 71, 200, 0.4)"
+            }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleBeginAdventure}
+            className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold text-lg rounded-xl shadow-lg py-3 px-6 flex items-center justify-center"
+          >
+            <motion.div
+              animate={{ 
+                x: [0, 5, 0],
+              }}
+              transition={{ 
+                duration: 1.5, 
+                repeat: Infinity, 
+                repeatType: "reverse"
+              }}
+              className="mr-2"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </motion.div>
+            Begin Your Adventure
+          </motion.button>
+        </div>
+
+        <div className="mt-4 text-center">
+          <p className="text-sm text-gray-600">
+            Or click on any quest to explore that specific topic
+          </p>
+        </div>
+      </motion.div>
+    );
+  };
+
   return (
     <SlideWrapper className="bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50">
       <div style={containerStyle} className="w-full flex flex-col p-4 md:p-6 lg:p-8 relative">
@@ -142,14 +203,14 @@ const TOCSlide = ({
             </p>
           </motion.div>
 
-          {/* Scrollable Quests Grid - key change is here */}
+          {/* Scrollable Quests Grid */}
           <motion.div
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            className="flex-grow overflow-y-auto" // This is critical for scrolling
+            className="flex-grow overflow-y-auto" 
             style={{ 
-              minHeight: 0, // This forces flex items to be able to scroll
+              minHeight: 0,
               scrollbarWidth: 'thin',
               scrollbarColor: 'rgba(79, 70, 229, 0.2) transparent'
             }}
@@ -167,8 +228,13 @@ const TOCSlide = ({
                   onClick={() => handleQuestClick(index)}
                   onHoverStart={() => setHoveredQuest(index)}
                   onHoverEnd={() => setHoveredQuest(null)}
-                  className="bg-white rounded-xl shadow-md transition-all duration-300 cursor-pointer overflow-hidden h-full flex flex-col"
+                  className="bg-white rounded-xl shadow-md transition-all duration-300 cursor-pointer overflow-hidden h-full flex flex-col relative"
                 >
+                  {/* Adventure Sequence Number */}
+                  <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-indigo-100 border border-indigo-200 flex items-center justify-center text-xs font-bold text-indigo-700">
+                    {index + 1}
+                  </div>
+                  
                   {/* Colored top bar */}
                   <div className={`h-2 bg-gradient-to-r ${index % 2 === 0 ? 'from-blue-500 to-indigo-600' : 'from-indigo-500 to-purple-600'}`}></div>
                   
@@ -190,7 +256,7 @@ const TOCSlide = ({
                     {/* Objectives - with internal scrolling if needed */}
                     <div className="mb-3 flex-grow overflow-y-auto">
                       <p className="text-xs uppercase tracking-wider text-gray-500 mb-2">Topics:</p>
-                      <ul className="space-y-1 pr-1"> {/* Added padding for scroll */}
+                      <ul className="space-y-1 pr-1">
                         {quest.objectives?.map((objective, idx) => (
                           <li key={idx} className="text-sm text-gray-700 flex items-start">
                             <span className="inline-block w-4 h-4 rounded-full bg-indigo-100 text-indigo-800 flex-shrink-0 mr-2 mt-0.5 flex items-center justify-center text-xs">
@@ -227,22 +293,8 @@ const TOCSlide = ({
             </div>
           </motion.div>
 
-          {/* Begin Adventure Button - moved to bottom */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: isReady ? 1 : 0, scale: isReady ? 1 : 0.9 }}
-            transition={{ duration: 0.5, delay: 0.5 }}
-            className="w-full flex justify-center mt-4 flex-shrink-0"
-          >
-            <motion.button
-              whileHover={{ scale: 1.05, boxShadow: "0 10px 25px -5px rgba(66, 71, 200, 0.4)" }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleBeginAdventure}
-              className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold text-lg rounded-xl shadow-lg"
-            >
-              Begin Your Adventure
-            </motion.button>
-          </motion.div>
+          {/* Enhanced Begin Adventure Button */}
+          {renderEnhancedAdventureButton()}
         </div>
       </div>
     </SlideWrapper>

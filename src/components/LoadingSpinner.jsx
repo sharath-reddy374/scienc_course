@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 // Import your logo
-import logoImage from '/Users/sharath/edYOU/Science course/lesson-generator/src/components/logo.png';
+import logoImage from '../components/logo.png';
 
 const FreshLoadingScreen = ({ customImage = logoImage }) => {
   const learningTips = [
