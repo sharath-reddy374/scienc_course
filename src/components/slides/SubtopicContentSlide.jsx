@@ -4,7 +4,7 @@ import SlideWrapper from '../common/SlideWrapper';
 import LoadingSpinner from '../LoadingSpinner';
 import DatabaseService from '../../services/databaseService';
 
-// Define all utility functions outside the component to prevent circular dependencies
+
 function hasValidContent(content, sectionType) {
   if (!content || !content[sectionType]) {
     return false;
@@ -23,6 +23,576 @@ function hasValidContent(content, sectionType) {
   
   return false;
 }
+
+const EnhancedKeyPointsSection = ({ 
+  subtopicContent, 
+  gradientColors, 
+  currentSection, 
+  sections, 
+  renderSectionRefreshButton 
+}) => {
+  const [expandedPoints, setExpandedPoints] = useState({});
+  
+  // Toggle expanded state for a key point
+  const toggleExpand = (idx) => {
+    setExpandedPoints(prev => ({
+      ...prev,
+      [idx]: !prev[idx]
+    }));
+  };
+  
+  // Get appropriate icon for a key point
+  const getPointIcon = (idx) => {
+    switch (idx % 5) {
+      case 0: return "🔑"; // Key
+      case 1: return "💡"; // Light bulb
+      case 2: return "⭐"; // Star
+      case 3: return "📌"; // Pin
+      case 4: return "✅"; // Checkmark
+      default: return "•";
+    }
+  };
+  
+  return (
+    <div className="h-full flex flex-col">
+      <h2 className="text-lg font-bold text-gray-800 mb-2 pb-1 border-b border-indigo-100 flex items-center justify-between">
+        <div className="flex items-center">
+          <span className={`w-5 h-5 flex items-center justify-center rounded-full bg-gradient-to-r ${gradientColors} text-white mr-2 shadow-md text-xs`}>
+            {currentSection + 1}
+          </span>
+          {sections[currentSection]}
+        </div>
+        {renderSectionRefreshButton()}
+      </h2>
+      
+      <div className="space-y-3 overflow-auto flex-1 pr-1">
+        {subtopicContent?.keyPoints?.map((point, idx) => (
+          <motion.div 
+            key={idx} 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: idx * 0.1 }}
+            onClick={() => toggleExpand(idx)}
+            className={`bg-white p-3 rounded-lg border-l-4 shadow-sm 
+                      transition-all duration-300 cursor-pointer
+                      border-indigo-500
+                      ${expandedPoints[idx] ? 'shadow-lg' : 'hover:shadow-md hover:bg-indigo-50/30'}`}
+          >
+            <div className="flex items-center justify-between">
+              <h4 className="font-semibold text-indigo-800 text-sm flex items-center">
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center mr-2 shadow-sm text-sm
+                                bg-indigo-100 text-indigo-600`}>
+                  {getPointIcon(idx)}
+                </span>
+                <span className="line-clamp-1">{point?.title || `Key Point ${idx+1}`}</span>
+              </h4>
+              
+              <div className="flex items-center space-x-1">
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-gray-400 transform transition-transform ${expandedPoints[idx] ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+            
+            {expandedPoints[idx] && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                transition={{ duration: 0.3 }}
+                className="mt-2"
+              >
+                <div className="pl-8 pr-2 py-2 text-sm text-gray-700 border-l border-indigo-200">
+                  {point?.description || "No additional information available."}
+                </div>
+              </motion.div>
+            )}
+          </motion.div>
+        )) || <p className="text-gray-500">No key points available.</p>}
+      </div>
+    </div>
+  );
+};
+ 
+
+// matching excercise
+const EnhancedMatchingExercise = ({ 
+  exercise, 
+  idx, 
+  matchingAnswers,
+  submittedMatchingExercises,
+  handleSelectLeftItem,
+  handleSelectRightItem,
+  handleRemoveMatch,
+  handleSubmitMatching,
+  isMatchingComplete,
+  isMatchCorrect,
+  gradientColors,
+  selectedLeftItem
+}) => {
+  const [showConnectors, setShowConnectors] = useState(true);
+  const [animateSuccess, setAnimateSuccess] = useState(false);
+  const leftRefs = useRef({});
+  const rightRefs = useRef({});
+  
+  // Toggle connector lines visibility
+  const toggleConnectors = () => {
+    setShowConnectors(prev => !prev);
+  };
+  
+  // Animate success effect when all matches are correct
+  useEffect(() => {
+    if (submittedMatchingExercises[idx]) {
+      const allCorrect = exercise?.correctPairs?.every(pair => 
+        matchingAnswers[idx]?.[pair.left] === pair.right
+      );
+      
+      if (allCorrect) {
+        setAnimateSuccess(true);
+        const timer = setTimeout(() => setAnimateSuccess(false), 2000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [submittedMatchingExercises, idx, exercise, matchingAnswers]);
+  
+  // Get dynamic background colors for matched items
+  const getMatchedColor = (leftIdx) => {
+    // Array of color pairs for matched items
+    const colorPairs = [
+      {left: 'bg-blue-100', right: 'bg-blue-100', border: 'border-blue-300', text: 'text-blue-800'},
+      {left: 'bg-green-100', right: 'bg-green-100', border: 'border-green-300', text: 'text-green-800'},
+      {left: 'bg-purple-100', right: 'bg-purple-100', border: 'border-purple-300', text: 'text-purple-800'},
+      {left: 'bg-rose-100', right: 'bg-rose-100', border: 'border-rose-300', text: 'text-rose-800'},
+      {left: 'bg-amber-100', right: 'bg-amber-100', border: 'border-amber-300', text: 'text-amber-800'}
+    ];
+    
+    // Use a consistent color for each pair based on the leftIdx
+    const colorIndex = leftIdx % colorPairs.length;
+    return colorPairs[colorIndex];
+  };
+  
+  // Calculate connector coordinates
+  const getConnectorCoordinates = (leftIdx, rightIdx) => {
+    if (!leftRefs.current[leftIdx] || !rightRefs.current[rightIdx]) {
+      return null;
+    }
+    
+    const leftRect = leftRefs.current[leftIdx].getBoundingClientRect();
+    const rightRect = rightRefs.current[rightIdx].getBoundingClientRect();
+    
+    // Find parent element coordinates for relative positioning
+    const parentEl = leftRefs.current[leftIdx].closest('.matching-exercise-container');
+    const parentRect = parentEl.getBoundingClientRect();
+    
+    // Calculate relative positions
+    const x1 = leftRect.right - parentRect.left;
+    const y1 = leftRect.top + leftRect.height / 2 - parentRect.top;
+    const x2 = rightRect.left - parentRect.left;
+    const y2 = rightRect.top + rightRect.height / 2 - parentRect.top;
+    
+    return { x1, y1, x2, y2 };
+  };
+  
+  // Get all matching pairs for drawing connectors
+  const getMatchingPairs = () => {
+    const pairs = [];
+    Object.entries(matchingAnswers[idx] || {}).forEach(([leftIdx, rightIdx]) => {
+      const coords = getConnectorCoordinates(parseInt(leftIdx), parseInt(rightIdx));
+      if (coords) {
+        const isCorrect = submittedMatchingExercises[idx] && 
+                         isMatchCorrect(idx, parseInt(leftIdx), parseInt(rightIdx));
+        pairs.push({
+          ...coords,
+          leftIdx: parseInt(leftIdx),
+          rightIdx: parseInt(rightIdx),
+          isCorrect
+        });
+      }
+    });
+    return pairs;
+  };
+  
+  // Get color for connector line
+  const getConnectorColor = (isSubmitted, leftIdx, isCorrect) => {
+    if (isSubmitted) {
+      return isCorrect ? 'rgba(34, 197, 94, 0.7)' : 'rgba(239, 68, 68, 0.7)';
+    }
+    
+    const colors = [
+      'rgba(59, 130, 246, 0.7)', // blue
+      'rgba(16, 185, 129, 0.7)', // green
+      'rgba(168, 85, 247, 0.7)', // purple
+      'rgba(244, 114, 182, 0.7)', // pink
+      'rgba(251, 146, 60, 0.7)'  // amber
+    ];
+    
+    return colors[leftIdx % colors.length];
+  };
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.1 }}
+      className={`bg-white p-4 rounded-lg border border-gray-200 shadow-md relative matching-exercise-container
+                 ${animateSuccess ? 'animate-pulse shadow-lg border-green-300' : ''}`}
+    >
+      {/* Header section */}
+      <div className="mb-4 flex justify-between items-center">
+        <h4 className="font-medium text-gray-800 text-base flex items-center">
+          <span className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center mr-3 shadow-sm text-sm">
+            {idx + 1}
+          </span>
+          <span className="bg-gradient-to-r from-indigo-600 to-blue-500 bg-clip-text text-transparent">
+            {exercise?.instructions || "Match the items on the left with their definitions on the right."}
+          </span>
+        </h4>
+        
+        {/* Toggle connectors button */}
+        {Object.keys(matchingAnswers[idx] || {}).length > 0 && (
+          <button
+            onClick={toggleConnectors}
+            className="text-xs text-indigo-600 flex items-center border border-indigo-200 rounded-md px-2 py-1 hover:bg-indigo-50"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z" />
+            </svg>
+            {showConnectors ? 'Hide Lines' : 'Show Lines'}
+          </button>
+        )}
+      </div>
+      
+      <div className="mb-3 text-sm text-gray-500 italic flex items-center">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+        </svg>
+        <span>Click an item on the left, then click its match on the right.</span>
+      </div>
+      
+      {/* SVG for connector lines */}
+      {showConnectors && (
+        <svg className="absolute top-0 left-0 w-full h-full z-0 pointer-events-none overflow-visible" style={{zIndex: 1}}>
+          {getMatchingPairs().map((pair, i) => (
+            <g key={i}>
+              <line
+                x1={pair.x1}
+                y1={pair.y1}
+                x2={pair.x2}
+                y2={pair.y2}
+                stroke={getConnectorColor(submittedMatchingExercises[idx], pair.leftIdx, pair.isCorrect)}
+                strokeWidth="2"
+                strokeDasharray={submittedMatchingExercises[idx] ? "0" : "5,5"}
+              />
+              {/* Direction arrow */}
+              <polygon 
+                points={`${pair.x2 - 8},${pair.y2 - 4} ${pair.x2},${pair.y2} ${pair.x2 - 8},${pair.y2 + 4}`}
+                fill={getConnectorColor(submittedMatchingExercises[idx], pair.leftIdx, pair.isCorrect)}
+              />
+            </g>
+          ))}
+        </svg>
+      )}
+      
+      {/* Matching items container */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 relative z-10">
+        {/* Left items */}
+        <div className="space-y-3 z-10">
+          <h5 className="text-sm font-medium text-indigo-600 mb-2 bg-indigo-50 p-2 rounded-lg text-center border border-indigo-100">
+            Items to Match
+          </h5>
+          {exercise?.leftItems?.map((item, leftIdx) => {
+            // Determine if this item is matched
+            const isMatched = matchingAnswers[idx]?.[leftIdx] !== undefined;
+            const matchedRightIdx = matchingAnswers[idx]?.[leftIdx];
+            const isCorrectMatch = submittedMatchingExercises[idx] && isMatchCorrect(idx, leftIdx, matchedRightIdx);
+            const isSelected = selectedLeftItem?.exerciseIdx === idx && selectedLeftItem?.leftIdx === leftIdx;
+            
+            // Get appropriate colors for matched items
+            const colorSet = getMatchedColor(leftIdx);
+            
+            return (
+              <motion.div
+                key={leftIdx}
+                ref={el => leftRefs.current[leftIdx] = el}
+                whileHover={!submittedMatchingExercises[idx] ? { scale: 1.02, x: 5 } : {}}
+                onClick={() => !submittedMatchingExercises[idx] && handleSelectLeftItem(idx, leftIdx)}
+                className={`p-3 rounded-lg border text-base cursor-pointer flex items-center 
+                           transition-all duration-300 ${
+                  submittedMatchingExercises[idx]
+                    ? isCorrectMatch
+                      ? 'bg-green-100 border-green-300 border-2'
+                      : 'bg-red-100 border-red-300 border-2'
+                    : isSelected
+                      ? 'bg-indigo-200 border-indigo-400 border-2 shadow-md'
+                      : isMatched
+                        ? `${colorSet.left} ${colorSet.border} border`
+                        : 'bg-white border-indigo-200 border hover:bg-indigo-50 hover:border-indigo-300'
+                }`}
+              >
+                <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium mr-3 shadow-sm ${
+                  submittedMatchingExercises[idx]
+                    ? isCorrectMatch
+                      ? 'bg-green-500 text-white'
+                      : 'bg-red-500 text-white'
+                    : isSelected
+                      ? 'bg-indigo-600 text-white'
+                      : isMatched
+                        ? `${colorSet.left.replace('100', '500')} text-white`
+                        : 'bg-indigo-500 text-white'
+                }`}>
+                  {leftIdx + 1}
+                </div>
+                <span className="flex-1">{item || ""}</span>
+                {isMatched && !submittedMatchingExercises[idx] && (
+                  <div className={`${colorSet.text} text-sm font-semibold rounded-full h-6 w-6 flex items-center justify-center ml-2 bg-white border ${colorSet.border}`}>
+                    {String.fromCharCode(65 + matchedRightIdx)}
+                  </div>
+                )}
+                
+                {submittedMatchingExercises[idx] && (
+                  <div className={`text-sm font-semibold ml-2 ${isCorrectMatch ? 'text-green-600' : 'text-red-600'}`}>
+                    {isCorrectMatch ? 
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      :
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    }
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
+        </div>
+        
+        {/* Right items */}
+        <div className="space-y-3 z-10">
+          <h5 className="text-sm font-medium text-indigo-600 mb-2 bg-indigo-50 p-2 rounded-lg text-center border border-indigo-100">
+            Definitions
+          </h5>
+          {exercise?.rightItems?.map((item, rightIdx) => {
+            const isMatchedByAny = Object.values(matchingAnswers[idx] || {}).includes(rightIdx);
+            const matchingLeftIdxArray = Object.entries(matchingAnswers[idx] || {})
+              .filter(([_, rIdx]) => parseInt(rIdx) === rightIdx)
+              .map(([leftIdx, _]) => parseInt(leftIdx));
+            const matchingLeftIdx = matchingLeftIdxArray.length > 0 ? matchingLeftIdxArray[0] : null;
+            const isCorrectMatch = submittedMatchingExercises[idx] && matchingLeftIdx !== null && isMatchCorrect(idx, matchingLeftIdx, rightIdx);
+            
+            // Get appropriate colors for matched items
+            const colorSet = matchingLeftIdx !== null ? getMatchedColor(matchingLeftIdx) : {right: '', border: '', text: ''};
+            
+            return (
+              <motion.div
+                key={rightIdx}
+                ref={el => rightRefs.current[rightIdx] = el}
+                whileHover={selectedLeftItem?.exerciseIdx === idx && !submittedMatchingExercises[idx] ? { scale: 1.02, x: -5 } : {}}
+                onClick={() => selectedLeftItem && !submittedMatchingExercises[idx] && handleSelectRightItem(idx, rightIdx)}
+                className={`p-3 rounded-lg border text-base flex items-center transition-all duration-300 ${
+                  submittedMatchingExercises[idx]
+                    ? Object.entries(matchingAnswers[idx] || {}).some(
+                        ([leftIdx, rIdx]) => 
+                          parseInt(rIdx) === rightIdx && 
+                          isMatchCorrect(idx, parseInt(leftIdx), rightIdx)
+                      )
+                      ? 'bg-green-100 border-green-300 border-2'
+                      : isMatchedByAny
+                        ? 'bg-red-100 border-red-300 border-2'
+                        : 'bg-white border-gray-200'
+                    : isMatchedByAny
+                      ? `${colorSet.right} ${colorSet.border} border`
+                      : selectedLeftItem?.exerciseIdx === idx
+                        ? 'bg-gray-50 border-dashed border-indigo-300 border-2 hover:bg-indigo-50 cursor-pointer'
+                        : 'bg-gray-50 border-dashed border-gray-300 border hover:border-indigo-300'
+                }`}
+              >
+                <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium mr-3 shadow-sm ${
+                  isMatchedByAny
+                    ? submittedMatchingExercises[idx]
+                      ? isCorrectMatch
+                        ? 'bg-green-500 text-white'
+                        : 'bg-red-500 text-white'
+                      : `${colorSet.right.replace('100', '500')} text-white`
+                    : 'bg-gray-300 text-gray-600'
+                }`}>
+                  {String.fromCharCode(65 + rightIdx)}
+                </div>
+                <span className="flex-1">{item || ""}</span>
+                {isMatchedByAny && !submittedMatchingExercises[idx] && (
+                  <div className={`${colorSet.text} text-sm font-semibold rounded-full h-6 w-6 flex items-center justify-center ml-2 bg-white border ${colorSet.border}`}>
+                    {matchingLeftIdx + 1}
+                  </div>
+                )}
+                
+                {submittedMatchingExercises[idx] && isMatchedByAny && (
+                  <div className={`text-sm font-semibold ml-2 ${isCorrectMatch ? 'text-green-600' : 'text-red-600'}`}>
+                    {isCorrectMatch ? 
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      :
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    }
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+      
+      {/* Matches display and controls */}
+      {!submittedMatchingExercises[idx] && Object.entries(matchingAnswers[idx] || {}).length > 0 && (
+        <div className="border-t border-dashed border-indigo-200 pt-3 mb-3">
+          <h5 className="text-sm font-medium text-indigo-600 mb-2 flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z" />
+            </svg>
+            Your Matches:
+          </h5>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {Object.entries(matchingAnswers[idx] || {}).map(([leftIdx, rightIdx]) => {
+              const colorSet = getMatchedColor(parseInt(leftIdx));
+              return (
+                <div key={leftIdx} className={`text-sm ${colorSet.text} ${colorSet.left} p-2 rounded flex justify-between items-center group shadow-sm`}>
+                  <div className="flex items-center">
+                    <span className="font-medium bg-white px-1.5 py-0.5 rounded-md shadow-sm">{parseInt(leftIdx) + 1}</span>
+                    <span className="mx-1">→</span>
+                    <span className="font-medium bg-white px-1.5 py-0.5 rounded-md shadow-sm">{String.fromCharCode(65 + parseInt(rightIdx))}</span>
+                  </div>
+                  <button 
+                    onClick={() => handleRemoveMatch(idx, parseInt(leftIdx))}
+                    className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-all duration-300"
+                    title="Remove this match"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      
+      {/* Controls */}
+      <div className="flex justify-end space-x-2 mt-4">
+        {Object.keys(matchingAnswers[idx] || {}).length > 0 && !submittedMatchingExercises[idx] && (
+          <button
+            onClick={() => {
+              // Access to setMatchingAnswers and setSelectedLeftItem needs to be passed as props
+              // For now, we'll rely on the handleRemoveMatch to clear all matches
+              Object.keys(matchingAnswers[idx] || {}).forEach(leftIdx => {
+                handleRemoveMatch(idx, parseInt(leftIdx));
+              });
+            }}
+            className="px-4 py-2 text-gray-600 rounded-lg text-sm border border-gray-300 hover:bg-gray-100 transition-all flex items-center"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+            </svg>
+            Reset
+          </button>
+        )}
+        
+        {isMatchingComplete(idx) && !submittedMatchingExercises[idx] && (
+          <button
+            onClick={() => handleSubmitMatching(idx)}
+            className={`px-4 py-2 text-white rounded-lg text-sm bg-gradient-to-r ${gradientColors} hover:shadow-md transition-all transform hover:scale-105 flex items-center`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+            Submit
+          </button>
+        )}
+      </div>
+      
+      {/* Results feedback */}
+      {submittedMatchingExercises[idx] && (
+        <motion.div 
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          transition={{ duration: 0.3 }}
+          className="bg-indigo-50 p-3 rounded-lg border border-indigo-100 mt-4"
+        >
+          <h5 className="text-sm font-medium text-indigo-700 mb-2 flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            Solution:
+          </h5>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
+            {exercise?.correctPairs?.map((pair, pairIdx) => {
+              const isUserCorrect = Object.entries(matchingAnswers[idx] || {}).some(
+                ([leftIdx, rightIdx]) => parseInt(leftIdx) === pair.left && parseInt(rightIdx) === pair.right
+              );
+              
+              return (
+                <div key={pairIdx} className={`text-sm flex flex-col p-2 rounded border transition-all duration-300 ${isUserCorrect ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}>
+                  <div className="flex items-center">
+                    <span className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium mr-2 ${isUserCorrect ? 'bg-green-500 text-white' : 'bg-indigo-500 text-white'}`}>
+                      {pair.left + 1}
+                    </span>
+                    <span className="font-medium text-gray-700 mr-2 truncate">
+                      {exercise.leftItems[pair.left]}
+                    </span>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mx-1 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                    </svg>
+                    <span className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium mx-2 ${isUserCorrect ? 'bg-green-500 text-white' : 'bg-indigo-500 text-white'}`}>
+                      {String.fromCharCode(65 + pair.right)}
+                    </span>
+                    <span className="font-medium text-gray-700 truncate">
+                      {exercise.rightItems[pair.right]}
+                    </span>
+                  </div>
+                  
+                  {isUserCorrect && (
+                    <div className="mt-1 text-xs text-green-600 flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      You got this one correct!
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          
+          {exercise?.explanations?.map((explanation, expIdx) => (
+            <div key={expIdx} className="text-sm text-gray-700 mt-2 p-2 bg-white rounded shadow-sm border border-gray-100">
+              <span className="font-medium text-indigo-600 block mb-1">Explanation {expIdx + 1}:</span>
+              <p>{explanation}</p>
+            </div>
+          ))}
+          
+          {/* Success animation for correct matches */}
+          {animateSuccess && (
+            <div className="absolute inset-0 pointer-events-none">
+              {[...Array(20)].map((_, i) => (
+                <div 
+                  key={i}
+                  className="absolute w-2 h-2 bg-green-500 rounded-full animate-ping"
+                  style={{
+                    left: `${Math.random() * 100}%`,
+                    top: `${Math.random() * 100}%`,
+                    animationDelay: `${Math.random() * 2}s`,
+                    animationDuration: `${1 + Math.random() * 3}s`
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </motion.div>
+      )}
+    </motion.div>
+  );
+};
 
 const SubtopicContentSlide = React.memo(({
   courseData,
@@ -239,7 +809,7 @@ const SubtopicContentSlide = React.memo(({
       contentLoadedRef.current[`${questIndex}-${subtopicIndex}-overview`] = true;
       loadingCompletedRef.current = true;
     }
-  }, [questIndex, subtopicIndex, subtopicContent]);
+  }, [questIndex, subtopicIndex, subtopicContent, __DEV__]);
 
   
   
@@ -837,8 +1407,6 @@ const SubtopicContentSlide = React.memo(({
     return exercise.correctPairs.some(pair => pair.left === leftIdx && pair.right === rightIdx);
   }, [subtopicContent]);
 
-  // Format overview content
-// In SubtopicContentSlide.jsx, enhance the formatOverview function to handle both formats
 
 // eslint-disable-next-line react-hooks/exhaustive-deps
 const formatOverview = (overviewText) => {
@@ -1221,11 +1789,9 @@ const formatOverview = (overviewText) => {
   };
 
 
-  
-  // Memoized renderSectionContent function
   const renderSectionContent = useCallback(() => {
     const currentSectionType = sectionToDataMap[currentSection];
-
+  
     // Check if we have content for the current section
     const hasContent = subtopicContent && subtopicContent[currentSectionType];
     
@@ -1239,38 +1805,17 @@ const formatOverview = (overviewText) => {
         </div>
       );
     }
-
+  
     // Define gradient colors based on quest index
     const gradientColors = questIndex % 2 === 0 
       ? 'from-blue-500 to-indigo-600' 
       : 'from-indigo-500 to-purple-600';
-
+  
     switch (currentSection) {
       case 0: // Overview
-  return (
-    <div className="h-full flex flex-col">
-      <h2 className="text-lg font-bold text-gray-800 mb-3 pb-1 border-b border-indigo-100 flex items-center justify-between">
-        <div className="flex items-center">
-          <span className={`w-5 h-5 flex items-center justify-center rounded-full bg-gradient-to-r ${gradientColors} text-white mr-2 shadow-md text-xs`}>
-            {currentSection + 1}
-          </span>
-          {sections[currentSection]}
-        </div>
-        {renderSectionRefreshButton()}
-      </h2>
-      
-      <div className="overflow-auto p-4 flex-1 rounded-lg border border-indigo-100 bg-white">
-        {formatOverview(subtopicContent?.overview) || 
-          <p className="text-base leading-relaxed p-4 bg-gray-50 rounded-lg">No overview content available.</p>
-        }
-      </div>
-    </div>
-  );
-        
-      case 1: // Key Points
         return (
           <div className="h-full flex flex-col">
-            <h2 className="text-lg font-bold text-gray-800 mb-2 pb-1 border-b border-indigo-100 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-gray-800 mb-3 pb-1 border-b border-indigo-100 flex items-center justify-between">
               <div className="flex items-center">
                 <span className={`w-5 h-5 flex items-center justify-center rounded-full bg-gradient-to-r ${gradientColors} text-white mr-2 shadow-md text-xs`}>
                   {currentSection + 1}
@@ -1279,29 +1824,27 @@ const formatOverview = (overviewText) => {
               </div>
               {renderSectionRefreshButton()}
             </h2>
-            <div className="space-y-2 overflow-auto flex-1 pr-1">
-              {subtopicContent?.keyPoints?.map((point, idx) => (
-                <motion.div 
-                  key={idx} 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  className="bg-gradient-to-r from-indigo-50 to-blue-50 p-3 rounded-lg border-l-4 border-indigo-500 shadow-sm transform hover:scale-105 transition-all hover:shadow-md"
-                >
-                  <h4 className="font-semibold text-indigo-800 mb-1 text-sm flex items-center">
-                    <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center mr-2 shadow-sm text-xs">
-                      {idx + 1}
-                    </span>
-                    {point?.title || `Key Point ${idx+1}`}
-                  </h4>
-                  <p className="text-gray-700 pl-7 text-sm">{point?.description || ""}</p>
-                </motion.div>
-              )) || <p className="text-gray-500">No key points available.</p>}
+            
+            <div className="overflow-auto p-4 flex-1 rounded-lg border border-indigo-100 bg-white">
+              {formatOverview(subtopicContent?.overview) || 
+                <p className="text-base leading-relaxed p-4 bg-gray-50 rounded-lg">No overview content available.</p>
+              }
             </div>
           </div>
         );
         
-      case 2: // Examples
+      case 1: // Key Points - Use the enhanced version
+        return (
+          <EnhancedKeyPointsSection
+            subtopicContent={subtopicContent}
+            gradientColors={gradientColors}
+            currentSection={currentSection}
+            sections={sections}
+            renderSectionRefreshButton={renderSectionRefreshButton}
+          />
+        );
+        
+      case 2: // Examples - Use the original version
         return (
           <div className="h-full flex flex-col">
             <h2 className="text-lg font-bold text-gray-800 mb-2 pb-1 border-b border-indigo-100 flex items-center justify-between">
@@ -1453,77 +1996,85 @@ const formatOverview = (overviewText) => {
               )}
             </div>
           </div>
-        );
-        
-      case 4: // Matching Exercises
-        return (
-          <div className="h-full flex flex-col">
-            <h2 className="text-lg font-bold text-gray-800 mb-2 pb-1 border-b border-indigo-100 flex items-center justify-between">
-              <div className="flex items-center">
-                <span className={`w-5 h-5 flex items-center justify-center rounded-full bg-gradient-to-r ${gradientColors} text-white mr-2 shadow-md text-xs`}>
-                  {currentSection + 1}
-                </span>
-                {sections[currentSection]}
-              </div>
-              {renderSectionRefreshButton()}
-            </h2>
-            <div className="overflow-auto flex-1 pr-1">
-              {subtopicContent?.matchingExercises && subtopicContent.matchingExercises.length > 0 ? (
-                <div className="space-y-3">
-                  {subtopicContent.matchingExercises.map((exercise, idx) => (
-                    <RenderMatchingExercise 
-                      key={idx} 
-                      exercise={exercise} 
-                      idx={idx} 
-                      matchingAnswers={matchingAnswers}
-                      submittedMatchingExercises={submittedMatchingExercises}
-                      handleSelectLeftItem={handleSelectLeftItem}
-                      handleSelectRightItem={handleSelectRightItem}
-                      handleRemoveMatch={handleRemoveMatch}
-                      handleSubmitMatching={handleSubmitMatching}
-                      isMatchingComplete={isMatchingComplete}
-                      isMatchCorrect={isMatchCorrect}
-                      gradientColors={gradientColors}
-                      selectedLeftItem={selectedLeftItem}
-                    />
-                  ))}
+          );
+      
+          case 4: // Matching Exercises - Use enhanced version
+          return (
+            <div className="h-full flex flex-col">
+              <h2 className="text-lg font-bold text-gray-800 mb-2 pb-1 border-b border-indigo-100 flex items-center justify-between">
+                <div className="flex items-center">
+                  <span className={`w-5 h-5 flex items-center justify-center rounded-full bg-gradient-to-r ${gradientColors} text-white mr-2 shadow-md text-xs`}>
+                    {currentSection + 1}
+                  </span>
+                  {sections[currentSection]}
                 </div>
-              ) : (
-                subtopicContent?.exercises && subtopicContent.exercises.some(ex => ex.type === 'matching') ? (
+                {renderSectionRefreshButton()}
+              </h2>
+              <div className="overflow-auto flex-1 pr-1">
+                {subtopicContent?.matchingExercises && subtopicContent.matchingExercises.length > 0 ? (
                   <div className="space-y-3">
-                    {subtopicContent.exercises
-                      .filter(ex => ex.type === 'matching')
-                      .map((exercise, idx) => (
-                        <RenderMatchingExercise 
-                          key={idx} 
-                          exercise={exercise} 
-                          idx={idx} 
-                          matchingAnswers={matchingAnswers}
-                          submittedMatchingExercises={submittedMatchingExercises}
-                          handleSelectLeftItem={handleSelectLeftItem}
-                          handleSelectRightItem={handleSelectRightItem}
-                          handleRemoveMatch={handleRemoveMatch}
-                          handleSubmitMatching={handleSubmitMatching}
-                          isMatchingComplete={isMatchingComplete}
-                          isMatchCorrect={isMatchCorrect}
-                          gradientColors={gradientColors}
-                          selectedLeftItem={selectedLeftItem}
-                        />
-                      ))
-                    }
+                    {subtopicContent.matchingExercises.map((exercise, idx) => (
+                      <EnhancedMatchingExercise
+                        key={idx} 
+                        exercise={exercise} 
+                        idx={idx} 
+                        matchingAnswers={matchingAnswers}
+                        submittedMatchingExercises={submittedMatchingExercises}
+                        handleSelectLeftItem={handleSelectLeftItem}
+                        handleSelectRightItem={handleSelectRightItem}
+                        handleRemoveMatch={handleRemoveMatch}
+                        handleSubmitMatching={handleSubmitMatching}
+                        isMatchingComplete={isMatchingComplete}
+                        isMatchCorrect={isMatchCorrect}
+                        gradientColors={gradientColors}
+                        selectedLeftItem={selectedLeftItem}
+                      />
+                    ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500">No matching exercises available.</p>
-                )
-              )}
+                  subtopicContent?.exercises && subtopicContent.exercises.some(ex => ex.type === 'matching') ? (
+                    <div className="space-y-3">
+                      {subtopicContent.exercises
+                        .filter(ex => ex.type === 'matching')
+                        .map((exercise, idx) => (
+                          <EnhancedMatchingExercise
+                            key={idx} 
+                            exercise={exercise} 
+                            idx={idx} 
+                            matchingAnswers={matchingAnswers}
+                            submittedMatchingExercises={submittedMatchingExercises}
+                            handleSelectLeftItem={handleSelectLeftItem}
+                            handleSelectRightItem={handleSelectRightItem}
+                            handleRemoveMatch={handleRemoveMatch}
+                            handleSubmitMatching={handleSubmitMatching}
+                            isMatchingComplete={isMatchingComplete}
+                            isMatchCorrect={isMatchCorrect}
+                            gradientColors={gradientColors}
+                            selectedLeftItem={selectedLeftItem}
+                          />
+                        ))
+                      }
+                    </div>
+                  ) : (
+                    <p className="text-gray-500">No matching exercises available.</p>
+                  )
+                )}
+              </div>
             </div>
-          </div>
-        );
-        
-      default:
-        return null;
-    }
-  }, [currentSection, subtopicContent, questIndex, sections, renderSectionRefreshButton, formatOverview, handleSelectAnswer, handleSubmitAnswer, userAnswers, submittedQuestions, matchingAnswers, submittedMatchingExercises, selectedLeftItem, handleSelectLeftItem, handleSelectRightItem, handleRemoveMatch, handleSubmitMatching, isMatchingComplete, isMatchCorrect, sectionToDataMap]);
+          );
+          
+        default:
+          return null;
+        }
+      }, [currentSection, subtopicContent, questIndex, sections, renderSectionRefreshButton, formatOverview, handleSelectAnswer, handleSubmitAnswer, userAnswers, submittedQuestions, matchingAnswers, submittedMatchingExercises, selectedLeftItem, handleSelectLeftItem, handleSelectRightItem, handleRemoveMatch, handleSubmitMatching, isMatchingComplete, isMatchCorrect, sectionToDataMap]);
+
+
+
+
+
+
+
+
 
   // Main component rendering
   const gradientColors = questIndex % 2 === 0 
@@ -1739,7 +2290,7 @@ const formatOverview = (overviewText) => {
                   className={`flex items-center justify-center w-8 h-8 rounded-full ${
                     currentSection === 0 
                       ? 'bg-gray-200 text-gray-400' 
-                      : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
+                      : 'bg-indigo-100 text-indigo-600 hover:b g-indigo-200'
                   }`}
                 >
                   <svg
